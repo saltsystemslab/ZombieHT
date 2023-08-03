@@ -1,13 +1,17 @@
-TARGETS=test test_threadsafe test_pc bm
-
-D=1
+TARGETS=test test_threadsafe test_pc bm hm_churn test_runner
 
 ifdef D
-	DEBUG=-g
+	DEBUG=-g -DDEBUG=1
 	OPT=
 else
 	DEBUG=
 	OPT=-Ofast
+endif
+
+ifdef S
+	STRICT= -DSTRICT=1
+else
+	STRICT=
 endif
 
 ifdef NH
@@ -22,14 +26,14 @@ endif
 
 LOC_INCLUDE=include
 LOC_SRC=src
-LOC_TEST=test
+LOC_TEST=tests
 OBJDIR=obj
 
-CC = gcc -std=gnu11
+CC = g++ -std=c++11
 CXX = g++ -std=c++11
-LD= gcc -std=gnu11
+LD= g++ -std=c++11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -m64 -I. -Iinclude
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) -m64 -I. -Iinclude
 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
 
@@ -57,6 +61,14 @@ bm:									$(OBJDIR)/bm.o $(OBJDIR)/gqf.o \
 										$(OBJDIR)/zipf.o $(OBJDIR)/hashutil.o \
 										$(OBJDIR)/partitioned_counter.o
 
+hm_churn:						$(OBJDIR)/hm_churn.o  $(OBJDIR)/gqf.o \
+										$(OBJDIR)/hashutil.o \
+										$(OBJDIR)/partitioned_counter.o
+
+test_runner:				$(OBJDIR)/test_runner.o $(OBJDIR)/gqf.o \
+										$(OBJDIR)/hashutil.o \
+										$(OBJDIR)/partitioned_counter.o
+
 # dependencies between .o files and .h files
 
 $(OBJDIR)/test.o: 						$(LOC_INCLUDE)/gqf.h \
@@ -70,10 +82,14 @@ $(OBJDIR)/test_threadsafe.o: 	$(LOC_INCLUDE)/gqf.h \
 $(OBJDIR)/bm.o:								$(LOC_INCLUDE)/gqf_wrapper.h \
 															$(LOC_INCLUDE)/partitioned_counter.h
 
+$(OBJDIR)/hm_churn.o:					$(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
+
+$(OBJDIR)/test_runner.o:			$(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
+
 
 # dependencies between .o files and .cc (or .c) files
 
-$(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c $(LOC_INCLUDE)/gqf.h
+$(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c $(LOC_INCLUDE)/gqf.h $(LOC_INCLUDE)/rhm.h $(LOC_INCLUDE)/trhm.h
 $(OBJDIR)/hashutil.o:					$(LOC_SRC)/hashutil.c $(LOC_INCLUDE)/hashutil.h
 $(OBJDIR)/partitioned_counter.o:	$(LOC_INCLUDE)/partitioned_counter.h
 
@@ -90,7 +106,7 @@ $(OBJDIR)/%.o: $(LOC_SRC)/%.cc | $(OBJDIR)
 $(OBJDIR)/%.o: $(LOC_SRC)/%.c | $(OBJDIR)
 	$(CC) $(CXXFLAGS) $(INCLUDE) $< -c -o $@
 
-$(OBJDIR)/%.o: $(LOC_TEST)/%.c | $(OBJDIR)
+$(OBJDIR)/%.o: $(LOC_TEST)/%.cc | $(OBJDIR)
 	$(CC) $(CXXFLAGS) $(INCLUDE) $< -c -o $@
 
 $(OBJDIR):

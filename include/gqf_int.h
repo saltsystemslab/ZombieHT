@@ -35,6 +35,8 @@ extern "C" {
 #define QF_SLOTS_PER_BLOCK (1ULL << QF_BLOCK_OFFSET_BITS)
 #define QF_METADATA_WORDS_PER_BLOCK ((QF_SLOTS_PER_BLOCK + 63) / 64)
 
+#define QF_WITH_TOMBSTONE 0
+
 	typedef struct __attribute__ ((__packed__)) qfblock {
 		/* Code works with uint16_t, uint32_t, etc, but uint8_t seems just as fast as
 		 * anything else */
