@@ -132,6 +132,7 @@ extern "C" {
 	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
 	 */
 	int qf_remove(QF *qf, uint64_t key, uint8_t flags);
+	int qft_remove(QF *qf, uint64_t key, uint8_t flags);
 
 	/****************************************
    Query functions
@@ -144,6 +145,7 @@ extern "C" {
 	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
 	 */
 	int qf_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
+	int qft_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
 	
 	/* Return the number of times key has been inserted, with the given
 		 value, into qf.

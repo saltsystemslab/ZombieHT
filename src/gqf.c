@@ -134,7 +134,6 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   // qf->metadata->next_tombstone = qf->metadata->tombstone_space;
   qf->metadata->nelts = 0;
   qf->metadata->noccupied_slots = 0;
-  qf->metadata->n_tombstones = 0;
 
   // Set all tombstones
   char *b = (char *)(qf->blocks);
@@ -876,7 +875,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
       return QF_KEY_EXISTS;
     uint64_t available_slot_index;
     ret = find_first_tombstone(qf, insert_index, &available_slot_index);
-    ret_distance = available_slot_index - hash_bucket_index;
+    ret_distance = available_slot_index - hash_bucket_index + 1;
     if (available_slot_index >= qf->metadata->xnslots)
       return QF_NO_SPACE;
     // counts
@@ -930,7 +929,7 @@ int trhm_insert(TRHM *trhm, uint64_t key, uint64_t value, uint8_t flags) {
   return ret;
 }
 
-int trhm_remove(RHM *qf, uint64_t key, uint8_t flags) {
+int qft_remove(RHM *qf, uint64_t key, uint8_t flags) {
   uint64_t hash = key2hash(qf, key, flags);
   uint64_t hash_remainder, hash_bucket_index;
   quotien_remainder(qf, hash, &hash_bucket_index, &hash_remainder);
@@ -978,7 +977,11 @@ int trhm_remove(RHM *qf, uint64_t key, uint8_t flags) {
   return current_index - runstart_index + 1;
 }
 
-int trhm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
+int trhm_remove(RHM *qf, uint64_t key, uint8_t flags) {
+  return qft_remove(qf, key, flags);
+}
+
+int qft_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
   uint64_t hash = key2hash(qf, key, flags);
   uint64_t hash_remainder, hash_bucket_index;
   quotien_remainder(qf, hash, &hash_bucket_index, &hash_remainder);
@@ -993,6 +996,10 @@ int trhm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
     return QF_DOESNT_EXIST;
   *value = get_slot(qf, current_index) & BITMASK(qf->metadata->value_bits);
   return 0;
+}
+
+int trhm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
+  return qft_query(qf, key, value, flags);
 }
 
 uint64_t trhm_clear_tombstones_in_run(QF *qf, uint64_t home_slot, uint64_t run_start, uint8_t flags) {

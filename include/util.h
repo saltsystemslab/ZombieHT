@@ -687,9 +687,13 @@ static inline int find_first_tombstone(QF *qf, uint64_t from, uint64_t * tombsto
   return 0;
 }
 
-// shift the part of b (bend, bstart] to the left by amount, little endian,
-// index from right. if bstart == 0, shift left part of a into the right part of
-// b. returns the result in b.
+/* Return a new word, which first copy `b`, then shift the part (bend, bstart]
+ * to the left by `amount`, keep anything out side of the range unchanged.
+ * big endian, index from right to left. 
+ * if bstart == 0, copy the right `amout` bits from `a` into the right side of
+ * the new word. 
+ * returns the new word.
+ */
 static inline uint64_t shift_into_b(const uint64_t a, const uint64_t b,
                                     const int bstart, const int bend,
                                     const int amount) {
@@ -733,12 +737,14 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
   ((uint64_t *)&(get_block(qf, (i) / qf->metadata->bits_per_slot)              \
                      ->slots[8 * ((i) % qf->metadata->bits_per_slot)]))
 
-/* shift remainders in range [start_index, empty_index) by 1 to the right. */
+/* shift slots in range [start_index, empty_index) by 1 to the big end. 
+ * slot empty_index will be replaced by slot empty_index-1
+ */
 static inline void shift_remainders(QF *qf, const uint64_t start_index,
                                     const uint64_t empty_index) {
-  uint64_t last_word = (empty_index + 1) * qf->metadata->bits_per_slot / 64;
+  uint64_t last_word = ((empty_index + 1) * qf->metadata->bits_per_slot - 1) / 64;
   const uint64_t first_word = start_index * qf->metadata->bits_per_slot / 64;
-  int bend = ((empty_index + 1) * qf->metadata->bits_per_slot) % 64;
+  int bend = ((empty_index + 1) * qf->metadata->bits_per_slot - 1) % 64 + 1;
   const int bstart = (start_index * qf->metadata->bits_per_slot) % 64;
 
   while (last_word != first_word) {
@@ -861,9 +867,10 @@ static inline void shift_runends(QF *qf, int64_t first, uint64_t last,
       0, METADATA_WORD(qf, runends, 64 * last_word), bstart, bend, distance);
 }
 
-// Shift metadata runends and tombstones to the big direction by distance.
-// Fill with 0s in the small size.
-// TODO: Refactor this function.
+/* Shift metadata runends and tombstones in range [first, last) to the big
+ * direction by distance.
+ * `last` to `last+distance-1` will be replaced. Fill with 0s in the small size.
+ */
 static inline void shift_runends_tombstones(QF *qf, int64_t first,
                                             uint64_t last, uint64_t distance) {
   assert(last < qf->metadata->xnslots);
@@ -871,7 +878,7 @@ static inline void shift_runends_tombstones(QF *qf, int64_t first,
   uint64_t first_word = first / 64;
   uint64_t bstart = first % 64;
   uint64_t last_word = (last + distance - 1) / 64;
-  uint64_t bend = (last + distance) % 64;
+  uint64_t bend = (last + distance - 1) % 64 + 1;
 
   if (last_word != first_word) {
     METADATA_WORD(qf, runends, 64 * last_word) = shift_into_b(
