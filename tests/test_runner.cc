@@ -168,6 +168,7 @@ std::string datastruct = "rhm";
 std::string replay_file = "test_case.txt";
 std::map<uint64_t, uint64_t> current_state;
 hashmap hm = rhm;
+static int verbose_flag = 0;  // 1 for verbose, 0 for brief
 
 void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, hashmap actual, bool check_equality = false) {
   uint64_t value;
@@ -276,6 +277,7 @@ void parseArgs(int argc, char **argv) {
 
 int main(int argc, char **argv) {
   parseArgs(argc, argv);
+  cout << "Algorithm: " << datastruct << std::endl;
   cout << "Key Bits: " << key_bits << std::endl;
   cout << "Quotient Bits: " << quotient_bits << std::endl;
   cout << "Value Bits: " << value_bits << std::endl;
@@ -301,9 +303,8 @@ int main(int argc, char **argv) {
     auto op = ops[i];
     key = op.key;
     value = op.value;
-    #if DEBUG
-    printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
-    #endif
+    if (verbose_flag)
+      printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
     switch(op.op) {
       case INSERT:
         map[key] = value;
@@ -316,7 +317,8 @@ int main(int argc, char **argv) {
         break;
       case DELETE:
         key_exists = map.erase(key);
-        printf("key_exists: %d\n", key_exists);
+        if (verbose_flag)
+          printf("key_exists: %d\n", key_exists);
         ret = hm.remove(key);
         if (key_exists && ret < 0) {
           fprintf(stderr, "Delete failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
@@ -335,5 +337,6 @@ int main(int argc, char **argv) {
         break;
     }
   }
+  printf("Test success.\n");
   hm.destroy();
 }

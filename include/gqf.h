@@ -123,6 +123,7 @@ extern "C" {
 	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
 	 */
 	int qf_insert(QF *qf, uint64_t key, uint64_t value, uint8_t flags);
+	int qft_insert(QF *qf, uint64_t key, uint64_t value, uint8_t flags);
 
 	/* Remove this key.
 	 * Return value:

@@ -151,8 +151,8 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
           num_counters, threshold);
   pc_init(&qf->runtimedata->pc_noccupied_slots,
           (int64_t *)&qf->metadata->noccupied_slots, num_counters, threshold);
-  pc_init(&qf->runtimedata->pc_n_tombstones,
-          (int64_t *)&qf->metadata->n_tombstones, num_counters, threshold);
+  pc_init(&qf->runtimedata->pc_rebuild_cd,
+          (int64_t *)&qf->metadata->rebuild_cd, num_counters, threshold);
   /* initialize container resize */
   qf->runtimedata->auto_resize = 0;
   /* initialize all the locks to 0 */
@@ -367,7 +367,7 @@ uint64_t qf_get_bits_per_slot(const QF *qf) {
 void qf_sync_counters(const QF *qf) {
   pc_sync(&qf->runtimedata->pc_nelts);
   pc_sync(&qf->runtimedata->pc_noccupied_slots);
-  pc_sync(&qf->runtimedata->pc_n_tombstones);
+  pc_sync(&qf->runtimedata->pc_rebuild_cd);
 }
 
 /* initialize the iterator at the run corresponding
@@ -808,15 +808,28 @@ int rhm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
  * Tombsone Robinhood Hashmap *
  ******************************************************************/
 
+static void reset_rebuild_cd(TRHM *trhm) {
+  if (trhm->metadata->nrebuilds != 0)
+    trhm->metadata->rebuild_cd = trhm->metadata->nrebuilds;
+  else {
+    // n/(4x), x=1/(1-load_factor).
+    size_t nslots = trhm->metadata->nslots;
+    size_t nelts = trhm->metadata->nelts;
+    trhm->metadata->rebuild_cd = (nslots - nelts) / 4;
+  }
+}
+
 uint64_t trhm_init(TRHM *trhm, uint64_t nslots, uint64_t key_bits,
                   uint64_t value_bits, enum qf_hashmode hash, uint32_t seed,
                   void *buffer, uint64_t buffer_len) {
   return qf_init(trhm, nslots, key_bits, value_bits, hash, seed, buffer, buffer_len);
 }
 
-bool trhm_malloc(RHM *rhm, uint64_t nslots, uint64_t key_bits,
+bool trhm_malloc(TRHM *trhm, uint64_t nslots, uint64_t key_bits,
                 uint64_t value_bits, enum qf_hashmode hash, uint32_t seed) {
-  return qf_malloc(rhm, nslots, key_bits, value_bits, hash, seed);
+  bool ret = qf_malloc(trhm, nslots, key_bits, value_bits, hash, seed);
+  reset_rebuild_cd(trhm);
+  return ret;
 }
 
 void trhm_destroy(RHM *rhm) {
@@ -827,7 +840,7 @@ bool trhm_free(RHM *rhm) {
   return qf_free(rhm);
 }
 
-int trhm_insert(RHM *qf, uint64_t key, uint64_t value, uint8_t flags) {
+int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
   if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) {
     return QF_NO_SPACE;
   }
@@ -870,9 +883,7 @@ int trhm_insert(RHM *qf, uint64_t key, uint64_t value, uint8_t flags) {
     modify_metadata(&qf->runtimedata->pc_nelts, 1);
     if (is_empty(qf, available_slot_index))
       modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-    else { // use a tombstone
-      modify_metadata(&qf->runtimedata->pc_n_tombstones, -1);
-    }
+    // else use a tombstone
     // shift
     shift_remainders(qf, insert_index, available_slot_index);
     // shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
@@ -907,6 +918,16 @@ int trhm_insert(RHM *qf, uint64_t key, uint64_t value, uint8_t flags) {
   }
 
   return ret_distance;
+}
+
+int trhm_insert(TRHM *trhm, uint64_t key, uint64_t value, uint8_t flags) {
+  int ret = qft_insert(trhm, key, value, flags);
+  if (ret >= 0)
+    if (--(trhm->metadata->rebuild_cd) == 0) {
+      trhm_clear_tombstones(trhm, QF_NO_LOCK);
+      reset_rebuild_cd(trhm);
+    }
+  return ret;
 }
 
 int trhm_remove(RHM *qf, uint64_t key, uint8_t flags) {
@@ -1005,8 +1026,8 @@ uint64_t trhm_clear_tombstones_in_run(QF *qf, uint64_t home_slot, uint64_t run_s
 
 int trhm_clear_tombstones(QF *qf, uint8_t flags) {
 	// TODO: Lock the whole Hashset.
-  printf("BEFORE CLEARING\n");
-  qf_dump(qf);
+  printf("START CLEARING\n");
+  // qf_dump(qf);
 	uint64_t run_start = 0;
 	for (uint64_t idx=0; idx < qf->metadata->nslots; idx++) {
 		if (idx > run_start) {
@@ -1017,8 +1038,8 @@ int trhm_clear_tombstones(QF *qf, uint8_t flags) {
 			run_start++;
 		}
 	}
-  printf("AFTER CLEARING\n");
-  qf_dump(qf);
+  // printf("AFTER CLEARING\n");
+  // qf_dump(qf);
   return 0;
 }
 /* Rebuild the next rebuild intervals.

@@ -5,6 +5,7 @@
 #include "gqf_int.h"
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,7 +19,7 @@ uint64_t trhm_init(TRHM *trhm, uint64_t nslots, uint64_t key_bits,
                   void *buffer, uint64_t buffer_len);
 
 bool trhm_malloc(TRHM *trhm, uint64_t nslots, uint64_t key_bits,
-                uint64_t value_bits, enum qf_hashmode hash, uint32_t seed);
+                 uint64_t value_bits, enum qf_hashmode hash, uint32_t seed);
 
 void trhm_destroy(TRHM *rhm);
 

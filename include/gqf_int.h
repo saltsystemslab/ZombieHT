@@ -78,7 +78,7 @@ extern "C" {
 		int64_t (*container_resize)(QF *qf, uint64_t nslots);
 		pc_t pc_nelts;
 		pc_t pc_noccupied_slots;
-		pc_t pc_n_tombstones;
+    pc_t pc_rebuild_cd;
 		uint64_t num_locks;
 		volatile int metadata_lock;
 		volatile int *locks;
@@ -103,13 +103,13 @@ extern "C" {
 		uint64_t nblocks;
 		uint64_t nelts;						// Without tombstones
 		uint64_t noccupied_slots; // With tombstones
-		uint64_t n_tombstones;
 		uint64_t n_start_rebuild;	// n_occupied_slots to start rebuild.
 		uint64_t next_tombstone;	// Next position to put a tombstone.
 		uint64_t rebuild_index;			// Current rebuild position
 		uint64_t tombstone_space;		// Distance between two primitive tombstones.
 		uint64_t nrebuilds;      		// Number of rebuilds per loop.
 		uint64_t rebuild_slots;  		// Number of slots to be rebuilt each time.
+		uint64_t rebuild_cd;  		// Rebuild window count down.
 	} quotient_filter_metadata;
 
 	typedef quotient_filter_metadata qfmetadata;
