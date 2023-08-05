@@ -811,12 +811,13 @@ static void reset_rebuild_cd(TRHM *trhm) {
   if (trhm->metadata->nrebuilds != 0)
     trhm->metadata->rebuild_cd = trhm->metadata->nrebuilds;
   else {
-    // n/log(x), x=1/(1-load_factor) [Graveyard paper Section 3.3]
+    // n/log_b^p(x), x=1/(1-load_factor) [Graveyard paper Section 3.3]
     // TODO: Find the best rebuild_cd, try n/log_b^p(x) for p >= 1 and b >=2.
     size_t nslots = trhm->metadata->nslots;
     size_t nelts = trhm->metadata->nelts;
-    double x = (double)nslots / ((double)nslots - (double)nelts);
-    trhm->metadata->rebuild_cd = (int)((double)nslots/log(x));
+    double x = (double)nslots / (double)(nslots - nelts);
+    trhm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
+    printf("n:%u, e:%u, x:%f, Rebuild CD: %u\n", nslots, nelts, x, trhm->metadata->rebuild_cd);
   }
 }
 
@@ -1035,7 +1036,7 @@ uint64_t trhm_clear_tombstones_in_run(QF *qf, uint64_t home_slot, uint64_t run_s
 
 int trhm_clear_tombstones(QF *qf, uint8_t flags) {
 	// TODO: Lock the whole Hashset.
-  printf("START CLEARING\n");
+  printf("Before clear, nelts: %u, noccupied_slots: %u\n", qf->metadata->nelts, qf->metadata->noccupied_slots);
   // qf_dump(qf);
 	uint64_t run_start = 0;
 	for (uint64_t idx=0; idx < qf->metadata->nslots; idx++) {
@@ -1047,6 +1048,7 @@ int trhm_clear_tombstones(QF *qf, uint8_t flags) {
 			run_start++;
 		}
 	}
+  printf("Before clear, nelts: %u, noccupied_slots: %u\n", qf->metadata->nelts, qf->metadata->noccupied_slots);
   // printf("AFTER CLEARING\n");
   // qf_dump(qf);
   return 0;
