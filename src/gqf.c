@@ -811,10 +811,12 @@ static void reset_rebuild_cd(TRHM *trhm) {
   if (trhm->metadata->nrebuilds != 0)
     trhm->metadata->rebuild_cd = trhm->metadata->nrebuilds;
   else {
-    // n/(4x), x=1/(1-load_factor).
+    // n/log(x), x=1/(1-load_factor) [Graveyard paper Section 3.3]
+    // TODO: Find the best rebuild_cd, try n/log_b^p(x) for p >= 1 and b >=2.
     size_t nslots = trhm->metadata->nslots;
     size_t nelts = trhm->metadata->nelts;
-    trhm->metadata->rebuild_cd = (nslots - nelts) / 4;
+    double x = (double)nslots / ((double)nslots - (double)nelts);
+    trhm->metadata->rebuild_cd = (int)((double)nslots/log(x));
   }
 }
 
