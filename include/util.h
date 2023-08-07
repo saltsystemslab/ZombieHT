@@ -1187,7 +1187,7 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
 static inline int64_t bitscanforward(uint64_t val)
 {
 	if (val == 0) {
-		return -1;
+		return 64;
 	} else {
 		asm("bsf %[val], %[val]"
 				: [val] "+r" (val)
@@ -1241,16 +1241,18 @@ static inline int _insert_ts_at(QF *const qf, size_t index) {
   return available_slot_index - index;
 }
 
-/* Find next occupied in [index, nslots). Return nslots if no such one. */
+/* Find next occupied in (index, nslots). Return nslots if no such one. */
 static size_t find_next_occupied(const QF *qf, size_t index) {
-  if (is_occupied(qf, index)) return index;
-	size_t block_index = index / QF_SLOTS_PER_BLOCK;
+  index += 1;
+  if (is_occupied(qf, index))
+    return index;
+  size_t block_index = index / QF_SLOTS_PER_BLOCK;
   size_t slot_offset = index % QF_SLOTS_PER_BLOCK;
   slot_offset = bsf_from(get_block(qf, block_index)->occupieds[0], slot_offset);
   while (slot_offset == QF_SLOTS_PER_BLOCK) {
     ++block_index;
     if (block_index * QF_SLOTS_PER_BLOCK >= qf->metadata->nslots)
-      return qf->metadata->nslots;
+      return qf->metadata->xnslots;
     slot_offset = bsf_from(get_block(qf, block_index)->occupieds[0], 0);
   }
   return slot_offset + block_index * QF_SLOTS_PER_BLOCK;

@@ -172,7 +172,7 @@ static int verbose_flag = 0;  // 1 for verbose, 0 for brief
 
 void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, hashmap actual, bool check_equality = false) {
   uint64_t value;
-  for (uint64_t k = 0; k < (1UL<<key_bits)-1; k++) {
+  for (uint64_t k = 0; k <= (1UL<<key_bits)-1; k++) {
     int key_exists = expected.find(k) != expected.end();
     int ret = actual.lookup(k, &value);
     if (key_exists) {

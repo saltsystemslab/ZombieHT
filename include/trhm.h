@@ -31,7 +31,7 @@ int trhm_remove(TRHM *trhm, uint64_t key, uint8_t flags);
 
 int trhm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
 
-int trhm_clear_tombstones(QF *qf, uint8_t flags);
+int trhm_rebuild(QF *qf, uint8_t flags);
 
 #ifdef __cplusplus
 }

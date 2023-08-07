@@ -28,7 +28,7 @@ extern inline int g_trhm_remove(uint64_t key)
 
 extern inline int g_trhm_rebuild()
 {
-	return trhm_clear_tombstones(&g_trobinhood_hashmap, QF_NO_LOCK);
+	return trhm_rebuild(&g_trobinhood_hashmap, QF_NO_LOCK);
 }
 
 extern inline int g_trhm_destroy()
