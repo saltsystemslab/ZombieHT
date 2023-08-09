@@ -892,8 +892,8 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     // shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
     set_slot(qf, insert_index, new_value);
     // Fix metadata
-    // If it is a new run, we need a new runend
     if (!is_occupied(qf, hash_bucket_index)) {
+      // If it is a new run, we need a new runend
       shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
       SET_R(qf, insert_index);
     } else if (insert_index >= runend_index) {
@@ -910,9 +910,12 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     uint64_t i;
     for (i = hash_bucket_index / QF_SLOTS_PER_BLOCK + 1;
          i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
-      if (get_block(qf, i)->offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
-        get_block(qf, i)->offset++;
-      assert(get_block(qf, i)->offset != 0);
+      uint8_t *block_offset = &(get_block(qf, i)->offset);
+      if (i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
+        if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
+          *block_offset += 1;
+        assert(*block_offset != 0);
+      }
     }
   }
 
