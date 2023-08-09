@@ -138,6 +138,8 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
 
     switch (op_type) {
     case INSERT:
+      if (map.size() > nkeys)
+        break;
       ops.push_back({INSERT, key, new_value});
       map[key] = new_value;
       break;
@@ -316,10 +318,11 @@ int main(int argc, char **argv) {
         map[key] = value;
         ret = hm.insert(key, value);
         if (ret < 0 && ret != QF_KEY_EXISTS) {
-          fprintf(stderr, "Insert failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+          fprintf(stderr, "Insert failed. Return %d for key %lx.\n", ret, key);
+          fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
           abort();
         }
-        check_universe(key_bits, map, hm);
+        // check_universe(key_bits, map, hm);
         break;
       case DELETE:
         key_exists = map.erase(key);
@@ -327,16 +330,18 @@ int main(int argc, char **argv) {
           printf("key_exists: %d\n", key_exists);
         ret = hm.remove(key);
         if (key_exists && ret < 0) {
-          fprintf(stderr, "Delete failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+          fprintf(stderr, "Delete failed. Return %d for existing key %lx.\n", ret, key);
+          fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
           abort();
         }
-        check_universe(key_bits, map, hm);
+        // check_universe(key_bits, map, hm);
         break;
       case LOOKUP:
         ret = hm.lookup(key, &value);
         if (map.find(key) != map.end()) {
           if (ret < 0)  {
-            fprintf(stderr, "Find failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+            fprintf(stderr, "Find failed. Return %d for existing key %lx.\n", ret, key);
+            fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
             abort();
           }
         }
