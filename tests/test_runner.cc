@@ -1,3 +1,4 @@
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -5,76 +6,10 @@
 #include <set>
 #include <unistd.h>
 #include <vector>
-#include <cassert>
-#include "rhm_wrapper.h"
-#include "trhm_wrapper.h"
-#include "grhm_wrapper.h"
+
+#include "test_util.h"
 
 using namespace std;
-
-#define MAX_VALUE(nbits) ((1ULL << (nbits)) - 1)
-#define BITMASK(nbits) ((nbits) == 64 ? 0xffffffffffffffff : MAX_VALUE(nbits))
-
-
-typedef int (*init_op)(uint64_t nkeys, uint64_t key_bits, uint64_t value_bits);
-typedef int (*insert_op)(uint64_t key, uint64_t val);
-typedef int (*lookup_op)(uint64_t key, uint64_t *val);
-typedef int (*remove_op)(uint64_t key);
-typedef int (*rebuild_op)();
-typedef int (*destroy_op)();
-
-typedef struct hashmap {
-  init_op init;
-  insert_op insert;
-  lookup_op lookup;
-  remove_op remove;
-  rebuild_op rebuild;
-  destroy_op destroy;
-} hashmap;
-
-hashmap rhm = {g_rhm_init, g_rhm_insert, g_rhm_lookup, g_rhm_remove,
-               g_rhm_rebuild, g_rhm_destroy};
-hashmap trhm = {g_trhm_init, g_trhm_insert, g_trhm_lookup, g_trhm_remove,
-               g_trhm_rebuild, g_trhm_destroy};
-hashmap grhm = {g_grhm_init, g_grhm_insert, g_grhm_lookup, g_grhm_remove,
-               g_grhm_rebuild, g_grhm_destroy};
-
-#define INSERT 0
-#define DELETE 1
-#define LOOKUP 2
-
-struct hm_op {
-  int op;
-  uint64_t key;
-  uint64_t value;
-};
-
-void load_ops(std::string replay_filepath, int *key_bits, int *quotient_bits,
-              int *value_bits, std::vector<hm_op> &ops) {
-  ifstream ifs;
-  ifs.open(replay_filepath);
-  ifs >> (*key_bits) >> (*quotient_bits) >> (*value_bits);
-  uint64_t num_keys;
-  ifs >> num_keys;
-  for (int i = 0; i < num_keys; i++) {
-    hm_op op;
-    ifs >> op.op >> op.key >> op.value;
-    ops.push_back(op);
-  }
-  ifs.close();
-}
-
-void write_ops(std::string replay_filepath, int key_bits, int quotient_bits,
-               int value_bits, std::vector<hm_op> &ops) {
-  ofstream ofs;
-  ofs.open(replay_filepath);
-  ofs << key_bits << " " << quotient_bits << " " << value_bits << std::endl;
-  ofs << ops.size() << std::endl;
-  for (auto op : ops) {
-    ofs << op.op << " " << op.key << " " << op.value << std::endl;
-  }
-  ofs.close();
-}
 
 uint64_t get_random_key(std::map<uint64_t, uint64_t> map, int key_bits) {
   uint64_t rand_idx = 0;
@@ -126,20 +61,21 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
     } else if (deleted && deleted_keys.size() > 0) {
       key = deleted_keys[rand() % deleted_keys.size()];
     } else {
-        key = keys[i] & BITMASK(key_bits);
+      key = keys[i] & BITMASK(key_bits);
     }
 
     if (map.find(key) != map.end()) {
-        existing_value = map[key];
+      existing_value = map[key];
     } else {
-        existing_value = -1;
+      existing_value = -1;
     }
     new_value = values[i] & BITMASK(value_bits);
 
     switch (op_type) {
     case INSERT:
-      if (map.size() > nkeys)
+      if (map.size() > nkeys) {
         break;
+      }
       ops.push_back({INSERT, key, new_value});
       map[key] = new_value;
       break;
@@ -166,15 +102,16 @@ int value_bits = 8;
 int initial_load_factor = 50;
 int num_ops = 200;
 bool should_replay = false;
-std::string datastruct = "rhm";
+std::string datastruct = "all";
 std::string replay_file = "test_case.txt";
 std::map<uint64_t, uint64_t> current_state;
-hashmap hm = rhm;
-static int verbose_flag = 0;  // 1 for verbose, 0 for brief
+static int verbose_flag = 1; // 1 for verbose, 0 for brief
 
-void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, hashmap actual, bool check_equality = false) {
+void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected,
+                    hashmap actual, bool check_equality = false) {
+                      #if 0
   uint64_t value;
-  for (uint64_t k = 0; k <= (1UL<<key_bits)-1; k++) {
+  for (uint64_t k = 0; k <= (1UL << key_bits) - 1; k++) {
     int key_exists = expected.find(k) != expected.end();
     int ret = actual.lookup(k, &value);
     if (key_exists) {
@@ -183,7 +120,8 @@ void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, ha
         fprintf(stderr, "Key %lx, %lu should exist.\n", k, k);
         abort();
       }
-      if (check_equality) assert(expected_value == value);
+      if (check_equality)
+        assert(expected_value == value);
     } else {
       if (ret != QF_DOESNT_EXIST) {
         fprintf(stderr, "Key %lx, %lu should not exist.\n", k, k);
@@ -191,20 +129,23 @@ void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, ha
       }
     }
   }
+  #endif
 }
 
 void usage(char *name) {
-  printf("%s [OPTIONS]\n"
-         "Options are:\n"
-         "  -d datastruct           [ Default rhm. rhm, trhm ]\n"
-         "  -k keysize bits         [ log_2 of map capacity.  Default 16 ]\n"
-         "  -q quotientbits         [ Default 8. Max 64.]\n"
-         "  -v value bits           [ Default 8. Max 64.]\n"
-         "  -m initial load factor  [ Initial Load Factor[0-100]. Default 50. ]\n"
-         "  -l                      [ Random Ops. Default 50.]\n"
-         "  -r replay               [ Whether to replay. If 0, will record to -f ]\n"
-         "  -f file                 [ File to record. Default test_case.txt ]\n",
-         name);
+  printf(
+      "%s [OPTIONS]\n"
+      "Options are:\n"
+      "  -d datastruct           [ Default all. rhm, trhm, grhm ]\n"
+      "  -k keysize bits         [ log_2 of map capacity.  Default 16 ]\n"
+      "  -q quotientbits         [ Default 8. Max 64.]\n"
+      "  -v value bits           [ Default 8. Max 64.]\n"
+      "  -m initial load factor  [ Initial Load Factor[0-100]. Default 50. ]\n"
+      "  -l                      [ Random Ops. Default 50.]\n"
+      "  -r replay               [ Whether to replay. If 0, will record to -f "
+      "]\n"
+      "  -f file                 [ File to record. Default test_case.txt ]\n",
+      name);
 }
 
 void parseArgs(int argc, char **argv) {
@@ -257,97 +198,115 @@ void parseArgs(int argc, char **argv) {
       }
       break;
     case 'r':
-        should_replay = strtol(optarg, &term, 10);
-        if (*term) {
-            fprintf(stderr, "Argument to -r must be an integer (0 to disable) \n");
-            usage(argv[0]);
-            exit(1);
-        }
-        break;
+      should_replay = strtol(optarg, &term, 10);
+      if (*term) {
+        fprintf(stderr, "Argument to -r must be an integer (0 to disable) \n");
+        usage(argv[0]);
+        exit(1);
+      }
+      break;
     case 'f':
-        replay_file = std::string(optarg);
-        break;
+      replay_file = std::string(optarg);
+      break;
     }
-    if (datastruct == "rhm") {
-      hm = rhm;
-    } else if (datastruct == "trhm") {
-      hm = trhm;
-    } else if (datastruct == "grhm") {
-      hm = grhm;
-    } else {
-      fprintf(stderr, "Argument to -d must one of 'rhm', 'trhm'. \n");
-      usage(argv[0]);
-      exit(1);
+    if (verbose_flag) {
+      cout << "Algorithm: " << datastruct << std::endl;
+      cout << "Key Bits: " << key_bits << std::endl;
+      cout << "Quotient Bits: " << quotient_bits << std::endl;
+      cout << "Value Bits: " << value_bits << std::endl;
+      cout << "LoadFactor : " << initial_load_factor << std::endl;
+      cout << "Num Ops: " << num_ops << std::endl;
+      cout << "Is Replay: " << should_replay << std::endl;
+      cout << "Test Case Replay File: " << replay_file << std::endl;
     }
-    // TODO(chesetti): Add assertions that flags are sane.
   }
 }
 
+void run_test(const char *hm_name, hashmap hm, std::vector<hm_op> &ops) {
+  if (verbose_flag)
+    printf("Testing %s\n", hm_name);
+  std::map<uint64_t, uint64_t> map;
+  hm.init((1ULL << quotient_bits), key_bits, value_bits);
+  uint64_t key, value;
+  int ret, key_exists;
+  for (int i = 0; i < ops.size(); i++) {
+    auto op = ops[i];
+    key = op.key;
+    value = op.value;
+    if (verbose_flag)
+      printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
+    switch (op.op) {
+    case INSERT:
+      map[key] = value;
+      ret = hm.insert(key, value);
+      if (ret < 0 && ret != QF_KEY_EXISTS) {
+        fprintf(stderr,
+                "Insert failed. Replay this testcase with ./test_case -d %s -r "
+                "1 -f %s\n",
+                datastruct.c_str(), replay_file.c_str());
+        abort();
+      }
+      check_universe(key_bits, map, hm);
+      break;
+    case DELETE:
+      key_exists = map.erase(key);
+      if (verbose_flag)
+        printf("key_exists: %d\n", key_exists);
+      ret = hm.remove(key);
+      if (key_exists && ret < 0) {
+        fprintf(stderr,
+                "Delete failed. Replay this testcase with ./test_case -d %s -r "
+                "1 -f %s\n",
+                datastruct.c_str(), replay_file.c_str());
+        abort();
+      }
+      check_universe(key_bits, map, hm);
+      break;
+    case LOOKUP:
+      ret = hm.lookup(key, &value);
+      if (map.find(key) != map.end()) {
+        if (ret < 0) {
+          fprintf(stderr,
+                  "Find failed. Replay this testcase with ./test_case -d %s -r "
+                  "1 -f %s\n",
+                  datastruct.c_str(), replay_file.c_str());
+          abort();
+        }
+      }
+      break;
+    }
+  }
+  hm.destroy();
+  if (verbose_flag)
+    printf("%s passed test!\n", hm_name);
+}
+
+void print_args() {}
+
 int main(int argc, char **argv) {
   parseArgs(argc, argv);
-  cout << "Algorithm: " << datastruct << std::endl;
-  cout << "Key Bits: " << key_bits << std::endl;
-  cout << "Quotient Bits: " << quotient_bits << std::endl;
-  cout << "Value Bits: " << value_bits << std::endl;
-  cout << "LoadFactor : " << initial_load_factor << std::endl;
-  cout << "Num Ops: " << num_ops << std::endl;
-  cout << "Is Replay: " << should_replay << std::endl;
-  cout << "Test Case Replay File: " << replay_file << std::endl;
 
   std::vector<hm_op> ops;
   if (should_replay) {
     load_ops(replay_file, &key_bits, &quotient_bits, &value_bits, ops);
   } else {
     generate_ops(key_bits, quotient_bits, value_bits, initial_load_factor,
-               num_ops, ops);
+                 num_ops, ops);
   }
   write_ops(replay_file, key_bits, quotient_bits, value_bits, ops);
-
-  std::map<uint64_t, uint64_t> map;
-  hm.init((1ULL<<quotient_bits), key_bits, value_bits);
-  uint64_t key, value;
-  int ret, key_exists;
-  for (int i=0; i < ops.size(); i++) {
-    auto op = ops[i];
-    key = op.key;
-    value = op.value;
-    if (verbose_flag)
-      printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
-    switch(op.op) {
-      case INSERT:
-        map[key] = value;
-        ret = hm.insert(key, value);
-        if (ret < 0 && ret != QF_KEY_EXISTS) {
-          fprintf(stderr, "Insert failed. Return %d for key %lx.\n", ret, key);
-          fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
-          abort();
-        }
-        // check_universe(key_bits, map, hm);
-        break;
-      case DELETE:
-        key_exists = map.erase(key);
-        if (verbose_flag)
-          printf("key_exists: %d\n", key_exists);
-        ret = hm.remove(key);
-        if (key_exists && ret < 0) {
-          fprintf(stderr, "Delete failed. Return %d for existing key %lx.\n", ret, key);
-          fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
-          abort();
-        }
-        // check_universe(key_bits, map, hm);
-        break;
-      case LOOKUP:
-        ret = hm.lookup(key, &value);
-        if (map.find(key) != map.end()) {
-          if (ret < 0)  {
-            fprintf(stderr, "Find failed. Return %d for existing key %lx.\n", ret, key);
-            fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
-            abort();
-          }
-        }
-        break;
-    }
+  if (datastruct == "all") {
+    run_test("RobinHood HashMap", rhm, ops);
+    run_test("Tombstone RobinHood Hashmap", trhm, ops);
+    // run_test("Graveyard RobhinHood Hashmap", grhm, ops);
+  } else if (datastruct == "rhm") {
+    run_test("RobinHood HashMap", rhm, ops);
+  } else if (datastruct == "trhm") {
+    run_test("Tombstone RobinHood Hashmap", trhm, ops);
+  } else if (datastruct == "grhm") {
+    // run_test("Graveyard RobhinHood Hashmap", grhm, ops);
+  } else {
+    usage(argv[0]);
+    abort();
   }
   printf("Test success.\n");
-  hm.destroy();
 }

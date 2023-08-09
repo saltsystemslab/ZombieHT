@@ -29,6 +29,18 @@
 #include "hashutil.h"
 #include "util.h"
 
+void check_runends_and_occupieds_are_equal(const QF *qf) {
+  uint64_t i;
+  uint64_t runend_bits = 0;
+  uint64_t occupied_bits = 0;
+  for (i = 0; i < qf->metadata->nblocks; i++) {
+    runend_bits += popcnt(*(get_block(qf, i)->runends));
+    occupied_bits += popcnt(*(get_block(qf, i)->occupieds));
+  }
+  assert(runend_bits == occupied_bits);
+}
+
+
 void qf_dump_metadata(const QF *qf) {
   printf("Slots: %lu Occupied: %lu Elements: %lu\n", qf->metadata->nslots,
          qf->metadata->noccupied_slots, qf->metadata->nelts);
