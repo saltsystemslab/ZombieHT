@@ -1140,7 +1140,6 @@ int trhm_rebuild(QF *qf, uint8_t flags) {
     if (push_start < curr_quotien) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
       if (n_to_free > 0) {
-        printf("Freeing %u tombstones\n", n_to_free);
         modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
       }
       push_start = curr_quotien;
