@@ -575,6 +575,8 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
 static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index);
 
 static inline uint64_t block_offset(const QF *qf, uint64_t blockidx) {
+  if (blockidx == 0)
+    return 0;
   /* If we have extended counters and a 16-bit (or larger) offset
            field, then we can safely ignore the possibility of overflowing
            that field. */
@@ -1238,12 +1240,11 @@ static inline int _insert_ts_at(QF *const qf, size_t index) {
       get_block(qf, i)->offset++;
     assert(get_block(qf, i)->offset != 0);
   }
-  return available_slot_index - index;
+  return available_slot_index - index + 1;
 }
 
-/* Find next occupied in (index, nslots). Return nslots if no such one. */
+/* Find next occupied in [index, nslots). Return nslots if no such one. */
 static size_t find_next_occupied(const QF *qf, size_t index) {
-  index += 1;
   if (is_occupied(qf, index))
     return index;
   size_t block_index = index / QF_SLOTS_PER_BLOCK;

@@ -960,6 +960,11 @@ int qft_remove(RHM *qf, uint64_t key, uint8_t flags) {
   // Make sure that the run never end with a tombstone.
   while (is_runend(qf, current_index) && is_tombstone(qf, current_index)) {
     RESET_R(qf, current_index);
+    // fix block offset if necessary
+    uint8_t *block_offset = &(get_block(qf, current_index / QF_SLOTS_PER_BLOCK)->offset);
+    if ((current_index+1) % QF_SLOTS_PER_BLOCK == *block_offset) {
+      *block_offset -= 1;
+    }
     // if it is the only element in the run
     if (current_index - runstart_index == 0) {
       RESET_O(qf, hash_bucket_index);
@@ -1059,14 +1064,12 @@ int trhm_clear_tombstones(QF *qf, uint8_t flags) {
  */
 int trhm_rebuild(QF *qf, uint8_t flags) {
   // TODO: multi thread this.
-  size_t curr_run = 0;
-  if (!is_occupied(qf, curr_run))
-    curr_run = find_next_occupied(qf, curr_run);
-	size_t push_start, push_end, runstart_index;
-  push_end = push_start = runstart_index = run_start(qf, curr_run);
-  // Range of pushing tombstones is [push_start, push_end).
-  // push over the current run, set `curr_run` to the next non-empty run.
-  while (curr_run < qf->metadata->nslots) {
+  size_t curr_quotien = find_next_occupied(qf, 0);
+  size_t push_start = run_start(qf, curr_quotien);
+  size_t push_end = push_start;
+  while (curr_quotien < qf->metadata->nslots) {
+    // Range of pushing tombstones is [push_start, push_end).
+    // push over the current run, set `curr_run` to the next non-empty run.
     do {
       // push 1 slot at a time.
       if (!is_tombstone(qf, push_end)) {
@@ -1074,30 +1077,31 @@ int trhm_rebuild(QF *qf, uint8_t flags) {
           RESET_T(qf, push_start);
           SET_T(qf, push_end);
           set_slot(qf, push_start, get_slot(qf, push_end));
-          if (push_start/QF_SLOTS_PER_BLOCK < push_end/QF_SLOTS_PER_BLOCK) {
-            assert(push_end - push_start < 64);
-            get_block(qf, push_end/QF_SLOTS_PER_BLOCK)->offset -= 1;
-          }
         }
         ++push_start;
       }
       ++push_end;
     } while (!is_runend(qf, push_end-1));
-    // reached the end of the run
+    // reached the end of the run, 
     // reset first, because push_start may equal to push_end.
     RESET_R(qf, push_end - 1);
     SET_R(qf, push_start - 1);
+    // fix block offset if necessary.
+    uint8_t *block_offset = &(get_block(qf, (push_end-1) / QF_SLOTS_PER_BLOCK)->offset);
+    if (push_end % QF_SLOTS_PER_BLOCK == *block_offset) {
+      *block_offset -= MIN(*block_offset, push_end - push_start);
+    }
     // find the next run
-    curr_run = find_next_occupied(qf, curr_run);
-    if (push_start <= curr_run) {  // Reached the end of the cluster.
-      size_t n_to_free = MIN(curr_run, push_end) - push_start;
+    curr_quotien = find_next_occupied(qf, ++curr_quotien);
+    if (push_start < curr_quotien) {  // Reached the end of the cluster.
+      size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
       if (n_to_free > 0) {
         printf("Freeing %u tombstones\n", n_to_free);
         modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
       }
-      push_start = curr_run;
+      push_start = curr_quotien;
       push_end = MAX(push_end, push_start);
     }
   }
-  return push_end - push_start;
+  return 0;
 }
