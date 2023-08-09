@@ -830,7 +830,6 @@ static void reset_rebuild_cd(TRHM *trhm) {
     size_t nelts = trhm->metadata->nelts;
     double x = (double)nslots / (double)(nslots - nelts);
     trhm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
-    printf("n:%u, e:%u, x:%f, Rebuild CD: %u\n", nslots, nelts, x, trhm->metadata->rebuild_cd);
   }
 }
 

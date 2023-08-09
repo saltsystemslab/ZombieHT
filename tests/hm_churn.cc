@@ -33,7 +33,7 @@ int value_bits = 8;
 int initial_load_factor = 95;
 int nchurns = 10;
 int nchurn_ops = 500;
-int npoints = 20;
+int npoints = 50;
 std::string datastruct = "rhm";
 std::string replay_file = "test_case.txt";
 hashmap hashmap_ds = rhm;
@@ -82,9 +82,9 @@ std::vector<hm_op> generate_ops() {
     ops.push_back(hm_op{INSERT, key, value});
   }
 
-  uint64_t keys_indexes_to_delete[num_churn_ops];
-  uint64_t new_keys[num_churn_ops];
-  uint64_t new_values[num_churn_ops];
+  uint64_t *keys_indexes_to_delete = new uint64_t[num_churn_ops];
+  uint64_t *new_keys = new uint64_t[num_churn_ops];
+  uint64_t *new_values = new uint64_t[num_churn_ops];
   for (int i = 0; i < nchurns; i++) {
     RAND_bytes((unsigned char *)keys_indexes_to_delete,
                num_churn_ops * sizeof(uint64_t));
@@ -245,6 +245,7 @@ void run_ops(std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
 }
 
 int main(int argc, char **argv) {
+  parseArgs(argc, argv);
   std::string outputfile = "thrput";
   std::string dir = "./";
   std::string load_op = "load.txt\0";
@@ -256,7 +257,6 @@ int main(int argc, char **argv) {
 
   FILE *fp_load = fopen(filename_load.c_str(), "w");
   FILE *fp_churn = fopen(filename_churn.c_str(), "w");
-  parseArgs(argc, argv);
 
   if (fp_load == NULL || fp_churn == NULL) {
     printf("Can't open the data file");
