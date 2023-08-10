@@ -90,8 +90,8 @@ $(OBJDIR)/test_runner.o:			$(LOC_INCLUDE)/grhm_wrapper.h $(LOC_INCLUDE)/rhm_wrap
 
 # dependencies between .o files and .cc (or .c) files
 
-$(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c $(LOC_INCLUDE)/gqf.h $(LOC_INCLUDE)/rhm.h $(LOC_INCLUDE)/trhm.h $(LOC_INCLUDE)/util.h
-$(OBJDIR)/grhm.o:							$(LOC_SRC)/grhm.c $(LOC_INCLUDE)/rhm.h $(LOC_INCLUDE)/trhm.h $(LOC_INCLUDE)/util.h
+$(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c $(LOC_INCLUDE)/gqf.h $(LOC_INCLUDE)/rhm.h $(LOC_INCLUDE)/trhm.h $(LOC_INCLUDE)/util.h $(LOC_INCLUDE)/ts_util.h
+$(OBJDIR)/grhm.o:							$(LOC_SRC)/grhm.c $(LOC_INCLUDE)/rhm.h $(LOC_INCLUDE)/trhm.h $(LOC_INCLUDE)/util.h $(LOC_INCLUDE)/ts_util.h
 $(OBJDIR)/hashutil.o:					$(LOC_SRC)/hashutil.c $(LOC_INCLUDE)/hashutil.h
 $(OBJDIR)/partitioned_counter.o:	$(LOC_INCLUDE)/partitioned_counter.h
 

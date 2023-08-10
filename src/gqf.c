@@ -28,6 +28,7 @@
 #include "gqf_int.h"
 #include "hashutil.h"
 #include "util.h"
+#include "ts_util.h"
 
 void qf_dump_metadata(const QF *qf) {
   printf("Slots: %lu Occupied: %lu Elements: %lu\n", qf->metadata->nslots,
@@ -1072,57 +1073,9 @@ int trhm_rebuild(QF *qf, uint8_t flags) {
   size_t push_end = push_start;
   while (curr_quotien < qf->metadata->nslots) {
     // Range of pushing tombstones is [push_start, push_end).
-    // push over the current run, set `curr_run` to the next non-empty run.
-    do {
-      // push 1 slot at a time.
-      if (!is_tombstone(qf, push_end)) {
-        if (push_start != push_end) {
-          RESET_T(qf, push_start);
-          SET_T(qf, push_end);
-          set_slot(qf, push_start, get_slot(qf, push_end));
-        }
-        ++push_start;
-      }
-      ++push_end;
-    } while (!is_runend(qf, push_end-1));
-    // reached the end of the run, 
-    // reset first, because push_start may equal to push_end.
-    RESET_R(qf, push_end - 1);
-    SET_R(qf, push_start - 1);
+    _push_over_run(qf, &push_start, &push_end);
     // fix block offset if necessary.
-
-    // update the offset bits.
-    // find the number of occupied slots in the original_bucket block.
-    // Then find the runend slot corresponding to the last run in the
-    // original_bucket block.
-    // Update the offset of the block to which it belongs.
-    uint64_t original_block = curr_quotien / QF_SLOTS_PER_BLOCK;
-    if (push_end > push_start) { // we only update offsets if we shift/delete anything
-      while (1) {
-        uint64_t last_occupieds_hash_index =
-            QF_SLOTS_PER_BLOCK * original_block + (QF_SLOTS_PER_BLOCK - 1);
-        uint64_t runend_index = run_end(qf, last_occupieds_hash_index);
-        // runend spans across the block
-        // update the offset of the next block
-        if (runend_index / QF_SLOTS_PER_BLOCK ==
-            original_block) { // if the run ends in the same block
-          if (get_block(qf, original_block + 1)->offset == 0)
-            break;
-          get_block(qf, original_block + 1)->offset = 0;
-        } else { // if the last run spans across the block
-          if (get_block(qf, original_block + 1)->offset ==
-              (runend_index - last_occupieds_hash_index))
-            break;
-          get_block(qf, original_block + 1)->offset =
-              (runend_index - last_occupieds_hash_index);
-        }
-        original_block++;
-      }
-    }
-    // uint8_t *block_offset = &(get_block(qf, (push_end-1) / QF_SLOTS_PER_BLOCK)->offset);
-    // if (push_end % QF_SLOTS_PER_BLOCK == *block_offset) {
-    //   *block_offset -= MIN(*block_offset, push_end - push_start);
-    // }
+    _recalculate_block_offsets(qf, curr_quotien);
     // find the next run
     curr_quotien = find_next_occupied(qf, ++curr_quotien);
     if (push_start < curr_quotien) {  // Reached the end of the cluster.
