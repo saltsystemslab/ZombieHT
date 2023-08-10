@@ -459,7 +459,7 @@ static inline uint64_t bitselect(uint64_t val, int rank) {
 }
 
 // Returns the position of the rank'th 1 from right, ignoring the first
-// ignore 1.
+// `ignore` bits.
 static inline uint64_t bitselectv(const uint64_t val, int ignore, int rank) {
   return bitselect(val & ~BITMASK(ignore % 64), rank);
 }
@@ -480,6 +480,41 @@ static inline int is_tombstone(const QF *qf, uint64_t index) {
   return (METADATA_WORD(qf, tombstones, index) >>
           ((index % QF_SLOTS_PER_BLOCK) % 64)) &
          1ULL;
+}
+
+/* Return num of runends in range [start, start+end). */
+static inline size_t runends_cnt(const QF *qf, size_t start, size_t len) {
+  size_t cnt = 0;
+  size_t end = start + len;
+  size_t block_i = start / QF_SLOTS_PER_BLOCK;
+  size_t bstart = start % QF_SLOTS_PER_BLOCK;
+  do {
+    size_t word = get_block(qf, block_i)->runends[0];
+    cnt += popcntv(word, bstart);
+    block_i++;
+    bstart = 0;
+  } while ((block_i) * QF_SLOTS_PER_BLOCK <= end);
+  size_t word = get_block(qf, block_i-1)->runends[0];
+  cnt -= popcntv(word, end % QF_SLOTS_PER_BLOCK);
+  return cnt;
+}
+
+/* Return pos of the next r occupieds in range [index, nslots). 0 for the first.
+ * If not found, return nslots.
+ */
+static inline size_t occupieds_rank(const QF *qf, size_t index, size_t r) {
+  size_t block_i = index / QF_SLOTS_PER_BLOCK;
+  size_t bstart = index % QF_SLOTS_PER_BLOCK;
+  do {
+    size_t word = get_block(qf, block_i)->occupieds[0];
+    size_t pos = bitselectv(word, bstart, r);
+    if (pos < sizeof(word) * 8)
+      return block_i * QF_SLOTS_PER_BLOCK + pos;
+    r -= popcntv(word, bstart);
+    bstart = 0;
+    block_i++;
+  } while (block_i < qf->metadata->nblocks);
+  return qf->metadata->nslots;
 }
 
 #if QF_BITS_PER_SLOT == 8 || QF_BITS_PER_SLOT == 16 ||                         \
@@ -1214,34 +1249,6 @@ static size_t run_start(const QF *const qf, const size_t quotient) {
   return MAX(start, quotient);
 }
 
-/* Make a tombstone at `index`.
- * It will be a part of a run iif `index` is a part of a run
- */
-static inline int _insert_ts_at(QF *const qf, size_t index) {
-  if (is_tombstone(qf, index)) return 0;
-  uint64_t available_slot_index;
-  int ret = find_first_tombstone(qf, index, &available_slot_index);
-  // TODO: Handle return code correctly.
-  if (ret != 0) abort();
-  if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
-  // Change counts
-  if (is_empty(qf, available_slot_index))
-    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-  // shift slot and metadata
-  shift_remainders(qf, index, available_slot_index);
-  shift_runends_tombstones(qf, index, available_slot_index, 1);
-  /* Increment the offset for each block between the hash bucket index
-   * and block of the empty slot  
-   */
-  uint64_t i;
-  for (i = index / QF_SLOTS_PER_BLOCK + 1;
-       i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
-    if (get_block(qf, i)->offset < BITMASK(8*sizeof(qf->blocks[0].offset)))
-      get_block(qf, i)->offset++;
-    assert(get_block(qf, i)->offset != 0);
-  }
-  return available_slot_index - index + 1;
-}
 
 /* Find next occupied in [index, nslots). Return nslots if no such one. */
 static size_t find_next_occupied(const QF *qf, size_t index) {

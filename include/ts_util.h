@@ -6,6 +6,43 @@
 
 #include "util.h"
 
+/* Find next tombstone/empty `available` in range [index, nslots)
+ * Shift everything in range [index, available) by 1 to the big direction.
+ * Make a tombstone at `index`
+ * Return:
+ *     >=0: Distance between index and `available`.
+ */
+static inline int _insert_ts_at(QF *const qf, size_t index) {
+  if (is_tombstone(qf, index)) return 0;
+  uint64_t available_slot_index;
+  int ret = find_first_tombstone(qf, index, &available_slot_index);
+  // TODO: Handle return code correctly.
+  if (ret != 0) abort();
+  if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
+  // Change counts
+  if (is_empty(qf, available_slot_index))
+    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
+  // shift slot and metadata
+  shift_remainders(qf, index, available_slot_index);
+  shift_runends_tombstones(qf, index, available_slot_index, 1);
+  SET_T(qf, index);
+  /* Increment the offset for each block between the hash bucket index
+   * and block of the empty slot  
+   */
+  uint64_t i;
+  for (i = index / QF_SLOTS_PER_BLOCK;
+        i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
+    uint8_t *block_offset = &(get_block(qf, i)->offset);
+    if (i > 0 && i * QF_SLOTS_PER_BLOCK + *block_offset -1 >= index &&
+      i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
+      if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
+        *block_offset += 1;
+      assert(*block_offset != 0);
+    }
+  }
+  return available_slot_index - index;
+}
+
 /* Push tombstones over an existing run (has at least one non-tombstone).
  * Range of pushing tombstones is [push_start, push_end).
  * push_start is also the start of the run.
@@ -57,6 +94,33 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
           (runend_index - last_occupieds_hash_index);
     }
     original_block++;
+  }
+}
+
+
+/* Rebuild quotien [`from_run`, `until_run`). Leave the pushing tombstones at
+ * the beginning of until_run. Here we do rebuild run by run. 
+ * Return the number of pushing tombstones at the end.
+ */
+static void _clear_tombstones(QF *qf) {
+  // TODO: multi thread this.
+  size_t curr_quotien = find_next_occupied(qf, 0);
+  size_t push_start = run_start(qf, curr_quotien);
+  size_t push_end = push_start;
+  while (curr_quotien < qf->metadata->nslots) {
+    // Range of pushing tombstones is [push_start, push_end).
+    _push_over_run(qf, &push_start, &push_end);
+    // fix block offset if necessary.
+    _recalculate_block_offsets(qf, curr_quotien);
+    // find the next run
+    curr_quotien = find_next_occupied(qf, ++curr_quotien);
+    if (push_start < curr_quotien) {  // Reached the end of the cluster.
+      size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
+      if (n_to_free > 0)
+        modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
+      push_start = curr_quotien;
+      push_end = MAX(push_end, push_start);
+    }
   }
 }
 

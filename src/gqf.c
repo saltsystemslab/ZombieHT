@@ -819,7 +819,6 @@ static void reset_rebuild_cd(TRHM *trhm) {
     size_t nelts = trhm->metadata->nelts;
     double x = (double)nslots / (double)(nslots - nelts);
     trhm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
-    printf("n:%u, e:%u, x:%f, Rebuild CD: %u\n", nslots, nelts, x, trhm->metadata->rebuild_cd);
   }
 }
 
@@ -1067,26 +1066,6 @@ int trhm_clear_tombstones(QF *qf, uint8_t flags) {
 /* Rebuild run by run. 
  */
 int trhm_rebuild(QF *qf, uint8_t flags) {
-  // TODO: multi thread this.
-  size_t curr_quotien = find_next_occupied(qf, 0);
-  size_t push_start = run_start(qf, curr_quotien);
-  size_t push_end = push_start;
-  while (curr_quotien < qf->metadata->nslots) {
-    // Range of pushing tombstones is [push_start, push_end).
-    _push_over_run(qf, &push_start, &push_end);
-    // fix block offset if necessary.
-    _recalculate_block_offsets(qf, curr_quotien);
-    // find the next run
-    curr_quotien = find_next_occupied(qf, ++curr_quotien);
-    if (push_start < curr_quotien) {  // Reached the end of the cluster.
-      size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
-      if (n_to_free > 0) {
-        printf("Freeing %u tombstones\n", n_to_free);
-        modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
-      }
-      push_start = curr_quotien;
-      push_end = MAX(push_end, push_start);
-    }
-  }
+  _clear_tombstones(qf);
   return 0;
 }
