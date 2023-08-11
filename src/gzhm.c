@@ -64,18 +64,50 @@ static int _insert_pts_range(GZHM *gzhm, size_t from_run, size_t until_run) {
 }
 
 /* Rebuild with 2 rounds. */
-static int _rebuild_2round(GZHM *gzhm) {
-  size_t rebuild_interval = gzhm->metadata->rebuild_interval;
-  if (rebuild_interval == 0)
-    // Default rebuild interval: 1.5(pts space) [Our paper]
-    rebuild_interval = 1.5 * _get_ts_space(gzhm);
-  size_t from_run = gzhm->metadata->rebuild_run;
-  size_t until_run = from_run + rebuild_interval;
-  gzhm->metadata->rebuild_run += rebuild_interval;
-  if (gzhm->metadata->rebuild_run >= gzhm->metadata->nslots)
-    gzhm->metadata->rebuild_run = 0;
+static int _rebuild_2round(GZHM *gzhm, size_t from_run, size_t until_run) {
   _clear_tombstones_range(gzhm, from_run, until_run);
   return _insert_pts_range(gzhm, from_run, until_run);
+}
+
+static int _rebuild_1round(GZHM *gzhm, size_t from_run, size_t until_run) {
+  size_t ts_space = _get_ts_space(gzhm);
+  size_t pts = (from_run / ts_space + 1) * ts_space - 1;
+  size_t curr_run = find_next_run(gzhm, from_run);
+  size_t push_start = run_start(gzhm, curr_run);
+  size_t push_end = push_start;
+  while (curr_run < until_run) {
+    if (curr_run >= pts) {
+      pts += ts_space;
+      if (push_start < push_end) {
+        push_start += 1;
+      } else {
+        int ret = _insert_ts_at(gzhm, push_start);
+        push_end = push_start += 1;
+        if (ret < 0) abort();
+        size_t n_skipped_runs = runends_cnt(gzhm, push_start, ret);
+        if (n_skipped_runs > 0) {
+          curr_run = occupieds_rank(gzhm, curr_run, n_skipped_runs);
+          if (curr_run > pts) 
+            curr_run = find_next_run(gzhm, pts);
+          push_end = push_start = run_start(gzhm, curr_run);
+          continue;
+        }
+      }
+    }
+    // Range of pushing tombstones is [push_start, push_end).
+    _push_over_run(gzhm, &push_start, &push_end);
+    // fix block offset if necessary.
+    _recalculate_block_offsets(gzhm, curr_run);
+    // find the next run
+    curr_run = find_next_run(gzhm, ++curr_run);
+    if (push_start < curr_run) {  // Reached the end of the cluster.
+      size_t n_to_free = MIN(curr_run, push_end) - push_start;
+      if (n_to_free > 0)
+        modify_metadata(&gzhm->runtimedata->pc_noccupied_slots, -n_to_free);
+      push_start = curr_run;
+      push_end = MAX(push_end, push_start);
+    }
+  }
 }
 
 /* Start at `qf->metadata->rebuild_run`, 
@@ -84,26 +116,19 @@ static int _rebuild_2round(GZHM *gzhm) {
  * Here we do rebuild run by run. 
  * Return the number of pushing tombstones at the end.
  */
-static void _rebuild(QF *qf) {
-  // TODO: multi thread this.
-  size_t curr_quotien = qf->metadata->rebuild_run;
-  size_t push_start = run_start(qf, curr_quotien);
-  size_t push_end = push_start;
-  while (curr_quotien < qf->metadata->nslots) {
-    // Range of pushing tombstones is [push_start, push_end).
-    _push_over_run(qf, &push_start, &push_end);
-    // fix block offset if necessary.
-    _recalculate_block_offsets(qf, curr_quotien);
-    // find the next run
-    curr_quotien = find_next_run(qf, ++curr_quotien);
-    if (push_start < curr_quotien) {  // Reached the end of the cluster.
-      size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
-      if (n_to_free > 0)
-        modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
-      push_start = curr_quotien;
-      push_end = MAX(push_end, push_start);
-    }
+static int _rebuild(GZHM *gzhm) {
+  size_t rebuild_interval = gzhm->metadata->rebuild_interval;
+  if (rebuild_interval == 0)
+    // Default rebuild interval: 1.5(pts space) [Our paper]
+    rebuild_interval = 1.5 * _get_ts_space(gzhm);
+  size_t from_run = gzhm->metadata->rebuild_run;
+  size_t until_run = from_run + rebuild_interval;
+  gzhm->metadata->rebuild_run = until_run;
+  if (until_run >= gzhm->metadata->nslots) {
+    until_run = gzhm->metadata->nslots;
+    gzhm->metadata->rebuild_run = 0;
   }
+  return _rebuild_1round(gzhm, from_run, until_run);
 }
 
 /******************************************************************************
@@ -133,15 +158,8 @@ bool gzhm_free(GZHM *gzhm) {
 
 int gzhm_insert(GZHM *gzhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(gzhm, key, value, flags);
-  if (ret >= 0)
-    if (--(gzhm->metadata->rebuild_cd) == 0) {
-      qf_sync_counters(gzhm);
-      // printf("Before clear, nelts: %u, noccupied_slots: %u\n", gzhm->metadata->nelts, gzhm->metadata->noccupied_slots);
-      _rebuild_2round(gzhm);
-      qf_sync_counters(gzhm);
-      // printf("After clear, nelts: %u, noccupied_slots: %u\n", gzhm->metadata->nelts, gzhm->metadata->noccupied_slots);
-      // reset_rebuild_cd(gzhm);
-    }
+  qf_sync_counters(gzhm);
+  if (ret >= 0) _rebuild(gzhm);
   return ret;
 }
 

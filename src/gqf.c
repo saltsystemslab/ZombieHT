@@ -848,6 +848,7 @@ bool trhm_free(RHM *rhm) {
 
 int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
   if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) {
+    abort();
     return QF_NO_SPACE;
   }
   if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
@@ -884,7 +885,8 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     ret = find_first_tombstone(qf, insert_index, &available_slot_index);
     ret_distance = available_slot_index - hash_bucket_index + 1;
     if (available_slot_index >= qf->metadata->xnslots)
-      return QF_NO_SPACE;
+      abort();
+      // return QF_NO_SPACE;
     // counts
     modify_metadata(&qf->runtimedata->pc_nelts, 1);
     if (is_empty(qf, available_slot_index))
