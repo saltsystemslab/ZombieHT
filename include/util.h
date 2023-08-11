@@ -1250,12 +1250,12 @@ static size_t run_start(const QF *const qf, const size_t quotient) {
 }
 
 
-/* Find next occupied in [index, nslots). Return nslots if no such one. */
-static size_t find_next_occupied(const QF *qf, size_t index) {
-  if (is_occupied(qf, index))
-    return index;
-  size_t block_index = index / QF_SLOTS_PER_BLOCK;
-  size_t slot_offset = index % QF_SLOTS_PER_BLOCK;
+/* Find next occupied in [run, nslots). Return nslots if no such one. */
+static size_t find_next_run(const QF *qf, size_t run) {
+  if (is_occupied(qf, run))
+    return run;
+  size_t block_index = run / QF_SLOTS_PER_BLOCK;
+  size_t slot_offset = run % QF_SLOTS_PER_BLOCK;
   slot_offset = bsf_from(get_block(qf, block_index)->occupieds[0], slot_offset);
   while (slot_offset == QF_SLOTS_PER_BLOCK) {
     ++block_index;

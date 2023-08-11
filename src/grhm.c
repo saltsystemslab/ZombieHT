@@ -34,7 +34,7 @@ static size_t _get_ts_space(GRHM *grhm) {
 }
 
 /* Insert primitive tombstones. */
-int _insert_pts(GRHM *grhm) {
+static int _insert_pts(GRHM *grhm) {
   // Find the space between primitive tombstones.
   size_t ts_space = _get_ts_space(grhm);
   size_t pts = ts_space - 1;
@@ -48,7 +48,7 @@ int _insert_pts(GRHM *grhm) {
 }
 
 /* Rebuild with 2 rounds. */
-int _rebuild_2round(GRHM *grhm) {
+static int _rebuild_2round(GRHM *grhm) {
   _clear_tombstones(grhm);
   return _insert_pts(grhm);
 }

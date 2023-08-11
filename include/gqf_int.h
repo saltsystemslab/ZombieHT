@@ -105,10 +105,10 @@ extern "C" {
 		uint64_t noccupied_slots; // With tombstones
 		uint64_t n_start_rebuild;	// n_occupied_slots to start rebuild.
 		uint64_t next_tombstone;	// Next position to put a tombstone.
-		uint64_t rebuild_index;			// Current rebuild position
-		uint64_t tombstone_space;		// Distance between two primitive tombstones.
-		uint64_t nrebuilds;      		// Number of rebuilds per loop.
-		uint64_t rebuild_slots;  		// Number of slots to be rebuilt each time.
+		uint64_t rebuild_run;     // Current rebuild position
+		uint64_t tombstone_space;	// Distance between two primitive tombstones.
+		uint64_t nrebuilds;      	// Number of rebuilds per loop.
+		uint64_t rebuild_interval;// Number of slots to be rebuilt each time.
 		uint64_t rebuild_cd;  		// Rebuild window count down.
 	} quotient_filter_metadata;
 

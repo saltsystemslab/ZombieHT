@@ -9,6 +9,7 @@
 #include "rhm_wrapper.h"
 #include "trhm_wrapper.h"
 #include "grhm_wrapper.h"
+#include "gzhm_wrapper.h"
 
 using namespace std;
 
@@ -38,6 +39,8 @@ hashmap trhm = {g_trhm_init, g_trhm_insert, g_trhm_lookup, g_trhm_remove,
                g_trhm_rebuild, g_trhm_destroy};
 hashmap grhm = {g_grhm_init, g_grhm_insert, g_grhm_lookup, g_grhm_remove,
                g_grhm_rebuild, g_grhm_destroy};
+hashmap gzhm = {g_gzhm_init, g_gzhm_insert, g_gzhm_lookup, g_gzhm_remove,
+               g_gzhm_rebuild, g_gzhm_destroy};
 
 #define INSERT 0
 #define DELETE 1
@@ -274,8 +277,10 @@ void parseArgs(int argc, char **argv) {
       hm = trhm;
     } else if (datastruct == "grhm") {
       hm = grhm;
+    } else if (datastruct == "gzhm") {
+      hm = gzhm;
     } else {
-      fprintf(stderr, "Argument to -d must one of 'rhm', 'trhm'. \n");
+      fprintf(stderr, "Argument to -d must one of 'rhm', 'trhm', 'grhm', 'gzhm'. \n");
       usage(argv[0]);
       exit(1);
     }
@@ -322,7 +327,7 @@ int main(int argc, char **argv) {
           fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
           abort();
         }
-        // check_universe(key_bits, map, hm);
+        check_universe(key_bits, map, hm);
         break;
       case DELETE:
         key_exists = map.erase(key);
@@ -334,7 +339,7 @@ int main(int argc, char **argv) {
           fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
           abort();
         }
-        // check_universe(key_bits, map, hm);
+        check_universe(key_bits, map, hm);
         break;
       case LOOKUP:
         ret = hm.lookup(key, &value);

@@ -104,7 +104,7 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
  */
 static void _clear_tombstones(QF *qf) {
   // TODO: multi thread this.
-  size_t curr_quotien = find_next_occupied(qf, 0);
+  size_t curr_quotien = find_next_run(qf, 0);
   size_t push_start = run_start(qf, curr_quotien);
   size_t push_end = push_start;
   while (curr_quotien < qf->metadata->nslots) {
@@ -113,7 +113,7 @@ static void _clear_tombstones(QF *qf) {
     // fix block offset if necessary.
     _recalculate_block_offsets(qf, curr_quotien);
     // find the next run
-    curr_quotien = find_next_occupied(qf, ++curr_quotien);
+    curr_quotien = find_next_run(qf, ++curr_quotien);
     if (push_start < curr_quotien) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
       if (n_to_free > 0)
