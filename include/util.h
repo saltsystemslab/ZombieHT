@@ -591,23 +591,32 @@ static inline uint64_t block_offset(const QF *qf, uint64_t blockidx) {
 
 /* Return the end index of a run if the run exists */
 static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
-  uint64_t bucket_block_index = hash_bucket_index / QF_SLOTS_PER_BLOCK;
-  uint64_t bucket_intrablock_offset = hash_bucket_index % QF_SLOTS_PER_BLOCK;
-  uint64_t bucket_blocks_offset = block_offset(qf, bucket_block_index);
+  uint64_t bucket_block_index = hash_bucket_index / QF_SLOTS_PER_BLOCK; // bucket q belongs to.
+  uint64_t bucket_intrablock_offset = hash_bucket_index % QF_SLOTS_PER_BLOCK; // slot inside bucket
+  uint64_t bucket_blocks_offset = block_offset(qf, bucket_block_index); // block offset of this bucket. 
+  // This is the number of runend bits that need to be masked for this bucket.
 
   uint64_t bucket_intrablock_rank =
       bitrank(get_block(qf, bucket_block_index)->occupieds[0],
-              bucket_intrablock_offset);
+              bucket_intrablock_offset); // How many occupieds are in this bucket before the current quotient.
 
-  if (bucket_intrablock_rank == 0) {
-    if (bucket_blocks_offset <= bucket_intrablock_offset)
+  if (bucket_intrablock_rank == 0) { // There are no occupieds in this bucket.
+    // If the bucket blocks offset - number of runends that you need to cover up
+    // is less than current bucket (you've masked all runends before this quotient)
+    // The run ends where it begins. Return hash bucket index
+    if (bucket_blocks_offset <= bucket_intrablock_offset) 
       return hash_bucket_index;
     else
+      // You need to mask some runends. Return the slot at the end of those masked runends.
       return QF_SLOTS_PER_BLOCK * bucket_block_index + bucket_blocks_offset - 1;
   }
 
+  // There are some occupieds in this bucket.
+  // You need to find the runend corresponding to the select(bucket_intrablock_rank)
+  // But first you need to adjust for bucket offset.
   uint64_t runend_block_index =
       bucket_block_index + bucket_blocks_offset / QF_SLOTS_PER_BLOCK;
+  // Ok what? What if bucket_blocks_offset greater than QF_SLOTS_PER_BLOCK? Let's see.
   uint64_t runend_ignore_bits = bucket_blocks_offset % QF_SLOTS_PER_BLOCK;
   uint64_t runend_rank = bucket_intrablock_rank - 1;
   uint64_t runend_block_offset =

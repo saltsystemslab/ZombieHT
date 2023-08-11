@@ -1,4 +1,4 @@
-TARGETS=test test_threadsafe test_pc bm hm_churn test_runner
+TARGETS=test test_threadsafe test_pc bm hm_churn test_runner play_test
 
 ifdef D
 	DEBUG=-g -DDEBUG=1
@@ -70,6 +70,11 @@ test_runner:				$(OBJDIR)/test_runner.o $(OBJDIR)/gqf.o \
 										$(OBJDIR)/hashutil.o \
 										$(OBJDIR)/partitioned_counter.o
 
+play_test:				$(OBJDIR)/play_test.o $(OBJDIR)/gqf.o \
+										$(OBJDIR)/grhm.o \
+										$(OBJDIR)/hashutil.o \
+										$(OBJDIR)/partitioned_counter.o
+
 # dependencies between .o files and .h files
 
 $(OBJDIR)/test.o: 						$(LOC_INCLUDE)/gqf.h \
@@ -86,6 +91,8 @@ $(OBJDIR)/bm.o:								$(LOC_INCLUDE)/gqf_wrapper.h \
 $(OBJDIR)/hm_churn.o:					$(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
 
 $(OBJDIR)/test_runner.o:			$(LOC_INCLUDE)/grhm_wrapper.h $(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
+
+$(OBJDIR)/play_test.o:			 $(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
 
 
 # dependencies between .o files and .cc (or .c) files
