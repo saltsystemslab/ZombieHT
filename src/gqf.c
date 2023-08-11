@@ -881,8 +881,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
                    &runstart_index, &runend_index);
     if (ret == 1)
       return QF_KEY_EXISTS;
-    uint64_t available_slot_index;
-    ret = find_first_tombstone(qf, insert_index, &available_slot_index);
+    uint64_t available_slot_index = find_next_tombstone(qf, insert_index);
     ret_distance = available_slot_index - hash_bucket_index + 1;
     if (available_slot_index >= qf->metadata->xnslots)
       abort();

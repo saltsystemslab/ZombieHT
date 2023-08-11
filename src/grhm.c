@@ -53,6 +53,11 @@ static int _rebuild_2round(GRHM *grhm) {
   return _insert_pts(grhm);
 }
 
+static int _rebuild(GRHM *grhm) {
+  size_t ts_space = _get_ts_space(grhm);
+  return _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
+}
+
 /******************************************************************************
  * Graveyard RobinHood HashMap.                                               *
  ******************************************************************************/
@@ -84,7 +89,7 @@ int grhm_insert(GRHM *grhm, uint64_t key, uint64_t value, uint8_t flags) {
     if (--(grhm->metadata->rebuild_cd) == 0) {
       qf_sync_counters(grhm);
       // printf("Before clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
-      _rebuild_2round(grhm);
+      _rebuild(grhm);
       qf_sync_counters(grhm);
       // printf("After clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
       reset_rebuild_cd(grhm);

@@ -709,19 +709,17 @@ static inline uint64_t find_first_empty_slot(QF *qf, uint64_t from, uint64_t *em
   return 0;
 }
 
-/* Find the index of first tombstone, it can be empty or not empty. */
-static inline int find_first_tombstone(QF *qf, uint64_t from, uint64_t * tombstone_index) {
-  uint64_t block_index = from / QF_SLOTS_PER_BLOCK;
-  qfblock *b = get_block(qf, block_index);
-  const uint64_t slot_offset = from % QF_SLOTS_PER_BLOCK;
-  uint64_t tomb_offset =
-      bitselect(b->tombstones[0] & (~BITMASK(slot_offset)), 0);
+/* Find the first tombstone in [from, xnslots), it can be empty or not empty. */
+static inline size_t find_next_tombstone(QF *qf, size_t from) {
+  size_t block_index = from / QF_SLOTS_PER_BLOCK;
+  const size_t slot_offset = from % QF_SLOTS_PER_BLOCK;
+  size_t tomb_offset =
+      bitselectv(get_block(qf, block_index)->tombstones[0], slot_offset, 0);
   while (tomb_offset == 64) { // No tombstone in the rest of this block.
     block_index++;
     tomb_offset = bitselect(get_block(qf, block_index)->tombstones[0], 0);
   }
-  *tombstone_index = block_index * QF_SLOTS_PER_BLOCK + tomb_offset;
-  return 0;
+  return block_index * QF_SLOTS_PER_BLOCK + tomb_offset;
 }
 
 /* Return a new word, which first copy `b`, then shift the part (bend, bstart]
