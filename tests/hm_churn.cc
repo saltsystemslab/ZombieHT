@@ -34,8 +34,9 @@ int initial_load_factor = 95;
 int nchurns = 10;
 int nchurn_ops = 500;
 int npoints = 50;
+int is_replay = 0;
 std::string datastruct = "rhm";
-std::string replay_file = "test_case.txt";
+std::string record_replay_file = "test_case.txt";
 hashmap hashmap_ds = rhm;
 
 uint64_t num_slots = 0;
@@ -54,6 +55,7 @@ void usage(char *name) {
       "cycle ]\n"
       "  -d datastruct         [ Default rhm. ]\n"
       "  -r replay             [ Whether to replay. If 0 will record to -f]\n"
+      "  -f record/replay file [ File to record/replay to. ]"
       "  -p npoints            [ number of points on the graph.  Default 20 "
       "]\n",
       name);
@@ -114,7 +116,7 @@ void parseArgs(int argc, char **argv) {
   int opt;
   char *term;
 
-  while ((opt = getopt(argc, argv, "k:q:v:i:c:l:d:f:p:")) != -1) {
+  while ((opt = getopt(argc, argv, "k:q:v:i:c:l:d:f:p:r:")) != -1) {
     switch (opt) {
     case 'k':
       key_bits = strtol(optarg, &term, 10);
@@ -171,8 +173,19 @@ void parseArgs(int argc, char **argv) {
         usage(argv[0]);
         exit(1);
       }
+    case 'r':
+      is_replay = strtol(optarg, &term, 10);
+      if (*term) {
+        fprintf(stderr, "Argument to -r must be an integer\n");
+        usage(argv[0]);
+        exit(1);
+      }
+      break;
     case 'd':
       datastruct = std::string(optarg);
+      break;
+    case 'f':
+      record_replay_file = std::string(optarg);
       break;
     default:
       fprintf(stderr, "Unknown option\n");
@@ -181,10 +194,14 @@ void parseArgs(int argc, char **argv) {
       break;
     }
   }
+  printf("IS REPLAY: %d %s\n", is_replay, record_replay_file.c_str());
+  printf("DS: %s\n", datastruct.c_str());
   if (datastruct == "rhm") {
     hashmap_ds = rhm;
   } else if (datastruct == "trhm") {
     hashmap_ds = trhm;
+  } else if (datastruct == "trhm_nr") {
+    hashmap_ds = trhm_nr;
   } else {
     fprintf(stderr, "Unknown datastruct.\n");
     usage(argv[0]);
@@ -222,6 +239,7 @@ void run_ops(std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
   for (int exp = 0; exp < 2 * npoints; exp += 2) {
     i = (exp / 2) * (nops / npoints) + start;
     j = ((exp / 2) + 1) * (nops / npoints) + start;
+    printf("Round: %d OPS %s [%lu %lu]\n", exp, output_file.c_str(), i, j);
 
     // TODO: Record time for this batch.
     gettimeofday(&ts[exp], NULL);
@@ -250,10 +268,13 @@ int main(int argc, char **argv) {
   std::string dir = "./";
   std::string load_op = "load.txt\0";
   std::string churn_op = "churn.txt\0";
+  std::string replay_op = "replay.txt\0";
   std::string filename_load =
-      datastruct + "-" + outputfile + "-" + load_op + ".txt";
+      datastruct + "-" + outputfile + "-" + load_op;
   std::string filename_churn =
-      datastruct + "-" + outputfile + "-" + churn_op + ".txt";
+      datastruct + "-" + outputfile + "-" + churn_op;
+  std::string filename_replay =
+      datastruct + "-" + outputfile + "-" + replay_op;
 
   FILE *fp_load = fopen(filename_load.c_str(), "w");
   FILE *fp_churn = fopen(filename_churn.c_str(), "w");
@@ -263,15 +284,26 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  std::vector<hm_op> ops = generate_ops();
-  write_ops("churn.txt", key_bits, quotient_bits, value_bits, ops);
+  std::vector<hm_op> ops;
+  if (is_replay) {
+    load_ops(record_replay_file, &key_bits, &quotient_bits, &value_bits, ops);
+    num_slots = (1ULL << quotient_bits);
+    // If replaying, just run in a single shot.
+    hashmap_ds.init(num_slots, key_bits, value_bits);
+    run_ops(ops, 0, ops.size(), npoints, filename_replay);
+    hashmap_ds.destroy();
+  } else {
+    ops = generate_ops();
+    write_ops(record_replay_file, key_bits, quotient_bits, value_bits, ops);
+    hashmap_ds.init(num_slots, key_bits, value_bits);
+    // LOAD PHASE.
+    run_ops(ops, 0, num_initial_load_keys, npoints, filename_load);
+    // CHURN PHASE.
+    run_ops(ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
+    hashmap_ds.destroy();
+  }
 
-  hashmap_ds.init(num_slots, key_bits, value_bits);
-  // LOAD PHASE.
-  run_ops(ops, 0, num_initial_load_keys, npoints, filename_load);
-  // CHURN PHASE.
-  run_ops(ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
-  hashmap_ds.destroy();
+
 
   return 0;
 }

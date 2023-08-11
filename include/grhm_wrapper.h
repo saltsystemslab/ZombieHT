@@ -26,11 +26,6 @@ extern inline int g_grhm_remove(uint64_t key)
 	return grhm_remove(&g_grobinhood_hashmap, key, QF_NO_LOCK | QF_KEY_IS_HASH);
 }
 
-extern inline int g_grhm_rebuild()
-{
-	return grhm_rebuild(&g_grobinhood_hashmap, QF_NO_LOCK);
-}
-
 extern inline int g_grhm_destroy()
 {
 	return grhm_free(&g_grobinhood_hashmap);
