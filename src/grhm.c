@@ -55,7 +55,7 @@ static int _rebuild_2round(GRHM *grhm) {
 
 static int _rebuild(GRHM *grhm) {
   size_t ts_space = _get_ts_space(grhm);
-  return _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
+  return _rebuild_no_insertion(grhm, 0, grhm->metadata->nslots, ts_space);
 }
 
 /******************************************************************************

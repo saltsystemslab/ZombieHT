@@ -65,6 +65,34 @@ static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
   SET_R(qf, *push_start - 1);
 }
 
+/* Push tombstones over an existing run (has at least one non-tombstone).
+ * Range of pushing tombstones is [push_start, push_end).
+ * push_start is also the start of the run.
+ * After this, push_start-1 is the end of the run.
+ */
+static void _push_over_run_skip_ts(QF *qf, size_t *push_start, size_t *push_end,
+                                   size_t *n_skipped_ts) {
+  do {
+    // push 1 slot at a time.
+    if (!is_tombstone(qf, *push_end)) {
+      if (*push_start != *push_end) {
+        RESET_T(qf, *push_start);
+        SET_T(qf, *push_end);
+        set_slot(qf, *push_start, get_slot(qf, *push_end));
+      }
+      ++*push_start;
+    } else if (*n_skipped_ts > 0) {
+      --*n_skipped_ts;
+      ++*push_start;
+    }
+    ++*push_end;
+  } while (!is_runend(qf, *push_end-1));
+  // reached the end of the run
+  // reset first, because push_start may equal to push_end.
+  RESET_R(qf, *push_end - 1);
+  SET_R(qf, *push_start - 1);
+}
+
 /* update the offset bits.
  * find the number of occupied slots in the original_bucket block.
  * Then find the runend slot corresponding to the last run in the
@@ -152,6 +180,37 @@ static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t t
     }
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run(grhm, &push_start, &push_end);
+    // fix block offset if necessary.
+    _recalculate_block_offsets(grhm, curr_run);
+    // find the next run
+    curr_run = find_next_run(grhm, ++curr_run);
+    if (push_start < curr_run) {  // Reached the end of the cluster.
+      size_t n_to_free = MIN(curr_run, push_end) - push_start;
+      if (n_to_free > 0)
+        modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
+      push_start = curr_run;
+      push_end = MAX(push_end, push_start);
+    }
+  }
+}
+
+
+/* Rebuild within 1 round. 
+ * There may exists overlap between shifts for insertion consecutive tombstones.
+ */
+static int _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
+  size_t pts = (from_run / ts_space + 1) * ts_space - 1;
+  size_t curr_run = find_next_run(grhm, from_run);
+  size_t push_start = run_start(grhm, curr_run);
+  size_t push_end = push_start;
+  size_t n_skipped_ts = 0;
+  while (curr_run < until_run) {
+    if (curr_run >= pts) {
+      n_skipped_ts += 1;
+      while (curr_run >= pts) pts += ts_space;
+    }
+    // Range of pushing tombstones is [push_start, push_end).
+    _push_over_run_skip_ts(grhm, &push_start, &push_end, &n_skipped_ts);
     // fix block offset if necessary.
     _recalculate_block_offsets(grhm, curr_run);
     // find the next run
