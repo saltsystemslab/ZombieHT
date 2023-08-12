@@ -12,7 +12,7 @@
  * Return:
  *     >=0: Distance between index and `available`.
  */
-static inline int _insert_ts_at(QF *const qf, size_t index) {
+static inline int _insert_ts_at(QF *const qf, size_t index, size_t run) {
   if (is_tombstone(qf, index)) return 0;
   size_t available_slot_index = find_next_tombstone(qf, index);
   // TODO: Handle return code correctly.
@@ -24,22 +24,47 @@ static inline int _insert_ts_at(QF *const qf, size_t index) {
   shift_remainders(qf, index, available_slot_index);
   shift_runends_tombstones(qf, index, available_slot_index, 1);
   SET_T(qf, index);
+  _recalculate_block_offsets(qf, run);
   /* Increment the offset for each block between the hash bucket index
    * and block of the empty slot  
    */
-  uint64_t i;
-  for (i = index / QF_SLOTS_PER_BLOCK;
-        i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
-    uint8_t *block_offset = &(get_block(qf, i)->offset);
-    if (i > 0 && i * QF_SLOTS_PER_BLOCK + *block_offset -1 >= index &&
-      i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
-      if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
-        *block_offset += 1;
-      assert(*block_offset != 0);
-    }
-  }
+  // uint64_t i;
+  // for (i = index / QF_SLOTS_PER_BLOCK;
+  //       i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
+  //   uint8_t *block_offset = &(get_block(qf, i)->offset);
+  //   if (i > 0 && i * QF_SLOTS_PER_BLOCK + *block_offset -1 >= index &&
+  //     i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
+  //     if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
+  //       *block_offset += 1;
+  //     else abort();
+  //   }
+  // }
   return available_slot_index - index;
 }
+
+/* Find next tombstone/empty `available` in range [index, nslots)
+ * Shift everything in range [index, available) by 1 to the big direction.
+ * Make a tombstone at `index`
+ * Return:
+ *     >=0: Distance between index and `available`.
+ */
+static inline int _insert_ts(QF *const qf, size_t run) {
+  size_t index = run_start(qf, run);
+  if (is_tombstone(qf, index)) return 0;
+  size_t available_slot_index = find_next_tombstone(qf, index);
+  // TODO: Handle return code correctly.
+  if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
+  // Change counts
+  if (is_empty(qf, available_slot_index))
+    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
+  // shift slot and metadata
+  shift_remainders(qf, index, available_slot_index);
+  shift_runends_tombstones(qf, index, available_slot_index, 1);
+  SET_T(qf, index);
+  _recalculate_block_offsets(qf, run);
+  return available_slot_index - index;
+}
+
 
 /* Push tombstones over an existing run (has at least one non-tombstone).
  * Range of pushing tombstones is [push_start, push_end).
@@ -93,36 +118,6 @@ static void _push_over_run_skip_ts(QF *qf, size_t *push_start, size_t *push_end,
   SET_R(qf, *push_start - 1);
 }
 
-/* update the offset bits.
- * find the number of occupied slots in the original_bucket block.
- * Then find the runend slot corresponding to the last run in the
- * original_bucket block.
- * Update the offset of the block to which it belongs.
- */
-static void _recalculate_block_offsets(QF *qf, size_t index) {
-  size_t original_block = index / QF_SLOTS_PER_BLOCK;
-  while (1) {
-    size_t last_occupieds_hash_index =
-        QF_SLOTS_PER_BLOCK * original_block + (QF_SLOTS_PER_BLOCK - 1);
-    size_t runend_index = run_end(qf, last_occupieds_hash_index);
-    // runend spans across the block
-    // update the offset of the next block
-    if (runend_index / QF_SLOTS_PER_BLOCK ==
-        original_block) { // if the run ends in the same block
-      if (get_block(qf, original_block + 1)->offset == 0)
-        break;
-      get_block(qf, original_block + 1)->offset = 0;
-    } else { // if the last run spans across the block
-      if (get_block(qf, original_block + 1)->offset ==
-          (runend_index - last_occupieds_hash_index))
-        break;
-      get_block(qf, original_block + 1)->offset =
-          (runend_index - last_occupieds_hash_index);
-    }
-    original_block++;
-  }
-}
-
 
 /* Rebuild quotien [`from_run`, `until_run`). Leave the pushing tombstones at
  * the beginning of until_run. Here we do rebuild run by run. 
@@ -165,7 +160,7 @@ static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t t
       if (push_start < push_end) {
         push_start += 1;
       } else {
-        int ret = _insert_ts_at(grhm, push_start);
+        int ret = _insert_ts_at(grhm, push_start, curr_run);
         push_end = push_start += 1;
         if (ret < 0) abort();
         size_t n_skipped_runs = runends_cnt(grhm, push_start, ret);

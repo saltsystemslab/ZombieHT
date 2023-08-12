@@ -698,7 +698,8 @@ static inline int rhm_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
         if (get_block(qf, i)->offset <
             BITMASK(8 * sizeof(qf->blocks[0].offset)))
           get_block(qf, i)->offset++;
-        assert(get_block(qf, i)->offset != 0);
+        else abort();
+        assert(get_block(qf, i)->offset != 0 && get_block(qf, i)->offset < 255);
       }
       modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
       modify_metadata(&qf->runtimedata->pc_nelts, 1);
@@ -918,7 +919,8 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
       if (i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
         if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
           *block_offset += 1;
-        assert(*block_offset != 0);
+        else abort();
+        assert(*block_offset != 0 && *block_offset < 255);
       }
     }
   }
@@ -967,11 +969,6 @@ int qft_remove(RHM *qf, uint64_t key, uint8_t flags) {
   // Make sure that the run never end with a tombstone.
   while (is_runend(qf, current_index) && is_tombstone(qf, current_index)) {
     RESET_R(qf, current_index);
-    // fix block offset if necessary
-    uint8_t *block_offset = &(get_block(qf, current_index / QF_SLOTS_PER_BLOCK)->offset);
-    if ((current_index+1) % QF_SLOTS_PER_BLOCK == *block_offset) {
-      *block_offset -= 1;
-    }
     // if it is the only element in the run
     if (current_index - runstart_index == 0) {
       RESET_O(qf, hash_bucket_index);
@@ -985,6 +982,8 @@ int qft_remove(RHM *qf, uint64_t key, uint8_t flags) {
       --current_index;
     }
   }
+  // fix block offset if necessary
+  _recalculate_block_offsets(qf, hash_bucket_index);
 
   if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
     qf_unlock(qf, hash_bucket_index, /*small*/ false);

@@ -1,3 +1,4 @@
+#include <math.h>
 #include "grhm.h"
 #include "util.h"
 #include <stddef.h>
@@ -18,6 +19,8 @@ static void reset_rebuild_cd(GRHM *grhm) {
     size_t nslots = grhm->metadata->nslots;
     size_t nelts = grhm->metadata->nelts;
     grhm->metadata->rebuild_cd = (nslots - nelts) / 4;
+    // double x = (double)nslots / (double)(nslots - nelts);
+    // grhm->metadata->rebuild_cd = (int)((double)nslots/log(x+2));
   }
 }
 
@@ -26,6 +29,7 @@ static size_t _get_ts_space(GRHM *grhm) {
   size_t ts_space = grhm->metadata->tombstone_space;
   if (ts_space == 0) {
     // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
+    qf_sync_counters(grhm);
     size_t nslots = grhm->metadata->nslots;
     size_t nelts = grhm->metadata->nelts;
     ts_space = (2 * nslots) / (nslots - nelts);
@@ -39,8 +43,9 @@ static int _insert_pts(GRHM *grhm) {
   size_t ts_space = _get_ts_space(grhm);
   size_t pts = ts_space - 1;
   while (pts < grhm->metadata->nslots) {
-    size_t runstart = run_start(grhm, pts);
-    int ret = _insert_ts_at(grhm, runstart);
+    // size_t runstart = run_start(grhm, pts);
+    // int ret = _insert_ts_at(grhm, runstart);
+    int ret = _insert_ts(grhm, pts);
     if (ret < 0) abort();
     pts += ts_space;
   }
@@ -55,7 +60,8 @@ static int _rebuild_2round(GRHM *grhm) {
 
 static int _rebuild(GRHM *grhm) {
   size_t ts_space = _get_ts_space(grhm);
-  return _rebuild_no_insertion(grhm, 0, grhm->metadata->nslots, ts_space);
+  return _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
+  // return _rebuild_no_insertion(grhm, 0, grhm->metadata->nslots, ts_space);
 }
 
 /******************************************************************************
@@ -87,10 +93,8 @@ int grhm_insert(GRHM *grhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(grhm, key, value, flags);
   if (ret >= 0)
     if (--(grhm->metadata->rebuild_cd) == 0) {
-      qf_sync_counters(grhm);
       // printf("Before clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
       _rebuild(grhm);
-      qf_sync_counters(grhm);
       // printf("After clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
       reset_rebuild_cd(grhm);
     }

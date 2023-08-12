@@ -55,8 +55,8 @@ static int _insert_pts_range(GZHM *gzhm, size_t from_run, size_t until_run) {
   size_t ts_space = _get_ts_space(gzhm);
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   while (pts < until_run) {
-    size_t runstart = run_start(gzhm, pts);
-    int ret = _insert_ts_at(gzhm, runstart);
+    // size_t runstart = run_start(gzhm, pts);
+    int ret = _insert_ts(gzhm, pts);
     if (ret < 0) abort();
     pts += ts_space;
   }
@@ -81,6 +81,7 @@ static int _rebuild(GZHM *gzhm) {
   if (rebuild_interval == 0)
     // Default rebuild interval: 1.5(pts space) [Our paper]
     rebuild_interval = 1.5 * ts_space;
+  // rebuild_interval /= 15;
   size_t from_run = gzhm->metadata->rebuild_run;
   size_t until_run = from_run + rebuild_interval;
   gzhm->metadata->rebuild_run = until_run;
