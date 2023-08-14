@@ -5,7 +5,7 @@ ifdef D
 	OPT=
 else
 	DEBUG=
-	OPT=-Ofast
+	OPT=-O0
 endif
 
 ifdef S
@@ -27,13 +27,14 @@ endif
 LOC_INCLUDE=include
 LOC_SRC=src
 LOC_TEST=tests
+LOC_BENCH=bench
 OBJDIR=obj
 
 CC = g++ -std=c++11
 CXX = g++ -std=c++11
 LD= g++ -std=c++11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) -m64 -I. -Iinclude
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) -m64 -I. -Iinclude -Itests
 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
 
@@ -62,6 +63,8 @@ bm:									$(OBJDIR)/bm.o $(OBJDIR)/gqf.o \
 										$(OBJDIR)/partitioned_counter.o
 
 hm_churn:						$(OBJDIR)/hm_churn.o  $(OBJDIR)/gqf.o \
+										$(OBJDIR)/grhm.o \
+										$(OBJDIR)/gzhm.o \
 										$(OBJDIR)/hashutil.o \
 										$(OBJDIR)/partitioned_counter.o
 
@@ -123,6 +126,9 @@ $(OBJDIR)/%.o: $(LOC_SRC)/%.c | $(OBJDIR)
 	$(CC) $(CXXFLAGS) $(INCLUDE) $< -c -o $@
 
 $(OBJDIR)/%.o: $(LOC_TEST)/%.cc | $(OBJDIR)
+	$(CC) $(CXXFLAGS) $(INCLUDE) $< -c -o $@
+
+$(OBJDIR)/%.o: $(LOC_BENCH)/%.cc | $(OBJDIR)
 	$(CC) $(CXXFLAGS) $(INCLUDE) $< -c -o $@
 
 $(OBJDIR):

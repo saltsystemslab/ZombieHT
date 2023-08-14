@@ -120,7 +120,9 @@ bool gzhm_free(GZHM *gzhm) {
 int gzhm_insert(GZHM *gzhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(gzhm, key, value, flags);
   qf_sync_counters(gzhm);
-  if (ret >= 0) _rebuild(gzhm);
+  if (ret >= 0) {
+    // _rebuild(gzhm);
+  }
   return ret;
 }
 
