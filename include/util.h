@@ -616,7 +616,7 @@ static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
   // But first you need to adjust for bucket offset.
   uint64_t runend_block_index =
       bucket_block_index + bucket_blocks_offset / QF_SLOTS_PER_BLOCK;
-  // Ok what? What if bucket_blocks_offset greater than QF_SLOTS_PER_BLOCK? Let's see.
+  // Bits to ignore in the runend_block_index.
   uint64_t runend_ignore_bits = bucket_blocks_offset % QF_SLOTS_PER_BLOCK;
   uint64_t runend_rank = bucket_intrablock_rank - 1;
   uint64_t runend_block_offset =
@@ -1105,7 +1105,8 @@ remove_replace_slots_and_shift_remainders_and_runends_and_offsets(
         if (get_block(qf, original_block + 1)->offset == 0)
           break;
         get_block(qf, original_block + 1)->offset = 0;
-      } else { // if the last run spans across the block
+      } else if (runend_index - last_occupieds_hash_index <
+            BITMASK(8*sizeof(qf->blocks[0].offset))) {
         if (get_block(qf, original_block + 1)->offset ==
             (runend_index - last_occupieds_hash_index))
           break;

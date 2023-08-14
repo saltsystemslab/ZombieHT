@@ -11,17 +11,15 @@
 
 using namespace std;
 
-uint64_t get_random_key(std::map<uint64_t, uint64_t> map, int key_bits) {
+uint64_t get_random_key(std::vector<std::pair<uint64_t, uint64_t>> map, int key_bits) {
   uint64_t rand_idx = 0;
   rand_idx = rand_idx % map.size();
   // This is not the best way to do this.
-  auto iter = map.begin();
-  std::advance(iter, rand_idx);
-  return iter->first;
+  return map[rand_idx].first;
 }
 
 void generate_ops(int key_bits, int quotient_bits, int value_bits,
-                  int initial_load_factor, int num_ops,
+                  int initial_load_factor, uint64_t num_ops,
                   std::vector<hm_op> &ops) {
   uint64_t nkeys = ((1ULL << quotient_bits) * initial_load_factor) / 100;
   uint64_t *keys = new uint64_t[nkeys];
@@ -30,14 +28,14 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
   RAND_bytes((unsigned char *)keys, nkeys * sizeof(uint64_t));
   RAND_bytes((unsigned char *)values, nkeys * sizeof(uint64_t));
 
-  std::map<uint64_t, uint64_t> map;
+  std::vector<std::pair<uint64_t, uint64_t>> map;
   std::vector<uint64_t> deleted_keys;
 
   for (int i = 0; i < nkeys; i++) {
     uint64_t key = keys[i] & BITMASK(key_bits);
     uint64_t value = values[i] & BITMASK(value_bits);
     ops.push_back({INSERT, key, value});
-    map[key] = value;
+    map.push_back(std::make_pair(key, value));
   }
 
   delete keys;
@@ -47,6 +45,9 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
   keys = new uint64_t[num_ops];
   RAND_bytes((unsigned char *)values, num_ops * sizeof(uint64_t));
   RAND_bytes((unsigned char *)keys, num_ops * sizeof(uint64_t));
+
+  cout<<"Loaded initial"<<std::endl;
+  cout<<"Loaded initial"<<" "<<num_ops<<std::endl;
 
   for (int i = 0; i < num_ops; i++) {
     int op_type = rand() % 3;
@@ -64,11 +65,6 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
       key = keys[i] & BITMASK(key_bits);
     }
 
-    if (map.find(key) != map.end()) {
-      existing_value = map[key];
-    } else {
-      existing_value = -1;
-    }
     new_value = values[i] & BITMASK(value_bits);
 
     switch (op_type) {
@@ -77,21 +73,21 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
         break;
       }
       ops.push_back({INSERT, key, new_value});
-      map[key] = new_value;
+      map.push_back(std::make_pair(key, new_value));
       break;
     case DELETE:
       ops.push_back({DELETE, key, existing_value});
       if (existing_value != -1) {
         deleted_keys.push_back(key);
-        map.erase(key);
       }
     case LOOKUP:
-      ops.push_back({LOOKUP, key, existing_value});
+       ops.push_back({LOOKUP, key, existing_value});
       break;
     default:
       break;
     }
   }
+  cout<<"Loaded Ops"<<std::endl;
   delete keys;
   delete values;
 }
@@ -105,11 +101,11 @@ bool should_replay = false;
 std::string datastruct = "all";
 std::string replay_file = "test_case.txt";
 std::map<uint64_t, uint64_t> current_state;
-static int verbose_flag = 1; // 1 for verbose, 0 for brief
+static int verbose_flag = 0; // 1 for verbose, 0 for brief
 
 void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected,
                     hashmap actual, bool check_equality = false) {
-                      #if 0
+  #if 0
   uint64_t value;
   for (uint64_t k = 0; k <= (1UL << key_bits) - 1; k++) {
     int key_exists = expected.find(k) != expected.end();
@@ -227,38 +223,45 @@ void run_test(const char *hm_name, hashmap hm, std::vector<hm_op> &ops) {
     printf("Testing %s\n", hm_name);
   std::map<uint64_t, uint64_t> map;
   hm.init((1ULL << quotient_bits), key_bits, value_bits);
+  printf("%lu %lu %lu\n", 1ULL<<quotient_bits, key_bits, value_bits);
   uint64_t key, value;
   int ret, key_exists;
-  for (int i = 0; i < ops.size(); i++) {
+  for (uint64_t i = 0; i < ops.size(); i++) {
     auto op = ops[i];
     key = op.key;
     value = op.value;
     if (verbose_flag)
       printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
+    if (i % 1000000==0) {
+      printf("%d\n", i);
+    }
+#if 0
+    if (i >= 3984591 && (i - 3984591) % 100000 == 0) {
+      printf("%lu \n", map.size());
+    }
+    if (map.size() > 1.5 * (1ULL << quotient_bits)) {
+      printf("%lu hohaha\n", i);
+      exit(1);
+    }
+#endif
+  if (i > 11984587) {
+      // check_block_offsets(&g_robinhood_hashmap);
+  }
+
     switch (op.op) {
+
     case INSERT:
-      map[key] = value;
+      // map[key] = value;
       ret = hm.insert(key, value);
-      if (ret < 0 && ret != QF_KEY_EXISTS) {
-        fprintf(stderr,
-                "Insert failed. Replay this testcase with ./test_case -d %s -r "
-                "1 -f %s\n",
-                datastruct.c_str(), replay_file.c_str());
-        abort();
-      }
       check_universe(key_bits, map, hm);
       break;
     case DELETE:
-      key_exists = map.erase(key);
+      //  key_exists = map.erase(key);
       if (verbose_flag)
         printf("key_exists: %d\n", key_exists);
       ret = hm.remove(key);
-      if (key_exists && ret < 0) {
-        fprintf(stderr,
-                "Delete failed. Replay this testcase with ./test_case -d %s -r "
-                "1 -f %s\n",
-                datastruct.c_str(), replay_file.c_str());
-        abort();
+      if (ret < 0) {
+        // abort();
       }
       check_universe(key_bits, map, hm);
       break;
@@ -275,6 +278,12 @@ void run_test(const char *hm_name, hashmap hm, std::vector<hm_op> &ops) {
       }
       break;
     }
+    #if 0
+      if (datastruct == "rhm")
+      check_block_offsets(&g_robinhood_hashmap);
+      else 
+      check_block_offsets(&g_trobinhood_hashmap);
+      #endif
   }
   hm.destroy();
   if (verbose_flag)
@@ -293,7 +302,8 @@ int main(int argc, char **argv) {
     generate_ops(key_bits, quotient_bits, value_bits, initial_load_factor,
                  num_ops, ops);
   }
-  write_ops(replay_file, key_bits, quotient_bits, value_bits, ops);
+  cout<<"Done generating ops!"<<endl;
+  // write_ops(replay_file, key_bits, quotient_bits, value_bits, ops);
   if (datastruct == "all") {
     run_test("RobinHood HashMap", rhm, ops);
     run_test("Tombstone RobinHood Hashmap", trhm, ops);

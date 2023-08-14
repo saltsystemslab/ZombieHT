@@ -251,6 +251,7 @@ extern "C" {
 	void qf_dump(const QF *);
 	void qf_dump_long(const QF *);
 	void qf_dump_metadata(const QF *qf);
+  void check_block_offsets(const QF *qf);
 
 #ifdef __cplusplus
 }

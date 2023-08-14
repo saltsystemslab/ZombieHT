@@ -40,6 +40,29 @@ void check_runends_and_occupieds_are_equal(const QF *qf) {
   assert(runend_bits == occupied_bits);
 }
 
+void check_block_offsets(const QF *qf) {
+  uint64_t i;
+  uint64_t runend_bits = 0;
+  uint64_t occupied_bits = 0;
+  for (i = 0; i < qf->metadata->nblocks; i++) {
+    uint64_t b_offset = block_offset(qf, i);
+    uint64_t cur_block = i;
+    uint64_t offset_bits = 0;
+    while(b_offset >= 64) {
+      offset_bits += bitrank(*(get_block(qf, cur_block)->runends), 63);
+      b_offset -= 64;
+      cur_block++;
+    }
+    if (b_offset) {
+      offset_bits += bitrank(*(get_block(qf, cur_block)->runends), b_offset-1);
+    }
+
+    assert(runend_bits + offset_bits == occupied_bits);
+    runend_bits += popcnt(*(get_block(qf, i)->runends));
+    occupied_bits += popcnt(*(get_block(qf, i)->occupieds));
+  }
+}
+
 
 void qf_dump_metadata(const QF *qf) {
   printf("Slots: %lu Occupied: %lu Elements: %lu\n", qf->metadata->nslots,

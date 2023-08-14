@@ -70,6 +70,7 @@ std::vector<hm_op> generate_ops() {
   std::vector<hm_op> ops;
   kv.reserve(num_initial_load_ops + num_churn_ops);
   ops.reserve(num_initial_load_ops + num_churn_ops);
+  cout<<num_initial_load_ops<<endl;
 
   uint64_t *keys = new uint64_t[num_initial_load_ops];
   uint64_t *values = new uint64_t[num_initial_load_ops];
@@ -87,19 +88,24 @@ std::vector<hm_op> generate_ops() {
   uint64_t *keys_indexes_to_delete = new uint64_t[num_churn_ops];
   uint64_t *new_keys = new uint64_t[num_churn_ops];
   uint64_t *new_values = new uint64_t[num_churn_ops];
-  for (int i = 0; i < nchurns; i++) {
+  cout<<num_churn_ops<<" "<<nchurns<<" "<<endl;
+
+    // INSERT NEW KEYS
+    RAND_bytes((unsigned char *)new_keys, num_churn_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)new_values, num_churn_ops * sizeof(uint64_t));
     RAND_bytes((unsigned char *)keys_indexes_to_delete,
                num_churn_ops * sizeof(uint64_t));
-    for (uint64_t i = 0; i < num_churn_ops; i++) {
+
+  for (int j = 0; j < nchurns; j++) {
+    for (uint64_t k = 0; k < nchurn_ops; k++) {
+      uint64_t i = j * nchurn_ops + k;
       uint32_t index = keys_indexes_to_delete[i] % kv.size();
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
       ops.push_back(hm_op{DELETE, key, value});
     }
-    // INSERT NEW KEYS
-    RAND_bytes((unsigned char *)new_keys, num_churn_ops * sizeof(uint64_t));
-    RAND_bytes((unsigned char *)new_values, num_churn_ops * sizeof(uint64_t));
-    for (uint64_t i = 0; i < num_churn_ops; i++) {
+    for (uint64_t k = 0; k < nchurn_ops; k++) {
+      uint64_t i = j * nchurn_ops + k;
       uint64_t key = (new_keys[i] & BITMASK(key_bits));
       uint64_t value = (new_values[i] & BITMASK(value_bits));
       ops.push_back(hm_op{INSERT, key, value});
@@ -236,7 +242,7 @@ void run_ops(std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
   struct timeval ts[2 * npoints];
   uint64_t nops = (end - start);
   uint64_t i, j, lookup_value = 0;
-  for (int exp = 0; exp < 2 * npoints; exp += 2) {
+  for (uint64_t exp = 0; exp < 2 * npoints; exp += 2) {
     i = (exp / 2) * (nops / npoints) + start;
     j = ((exp / 2) + 1) * (nops / npoints) + start;
     printf("Round: %d OPS %s [%lu %lu]\n", exp, output_file.c_str(), i, j);
@@ -294,7 +300,7 @@ int main(int argc, char **argv) {
     hashmap_ds.destroy();
   } else {
     ops = generate_ops();
-    write_ops(record_replay_file, key_bits, quotient_bits, value_bits, ops);
+    // write_ops(record_replay_file, key_bits, quotient_bits, value_bits, ops);
     hashmap_ds.init(num_slots, key_bits, value_bits);
     // LOAD PHASE.
     run_ops(ops, 0, num_initial_load_keys, npoints, filename_load);
