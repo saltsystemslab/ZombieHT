@@ -909,20 +909,21 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
       shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
     }
     SET_O(qf, hash_bucket_index);
+    _recalculate_block_offsets(qf, hash_bucket_index);
     /* Increment the offset for each block between the hash bucket index
      * and block of the empty slot
      */
-    uint64_t i;
-    for (i = hash_bucket_index / QF_SLOTS_PER_BLOCK + 1;
-         i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
-      uint8_t *block_offset = &(get_block(qf, i)->offset);
-      if (i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
-        if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
-          *block_offset += 1;
-        else abort();
-        assert(*block_offset != 0 && *block_offset < 255);
-      }
-    }
+    // uint64_t i;
+    // for (i = hash_bucket_index / QF_SLOTS_PER_BLOCK + 1;
+    //      i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
+    //   uint8_t *block_offset = &(get_block(qf, i)->offset);
+    //   if (i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
+    //     if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
+    //       *block_offset += 1;
+    //     else abort();
+    //     assert(*block_offset != 0 && *block_offset < 255);
+    //   }
+    // }
   }
 
   if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
