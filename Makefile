@@ -5,7 +5,7 @@ ifdef D
 	OPT=
 else
 	DEBUG=
-	OPT=-O0
+	OPT=-Ofast
 endif
 
 ifdef S

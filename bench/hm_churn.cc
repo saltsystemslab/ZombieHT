@@ -216,25 +216,23 @@ std::vector<hm_op> generate_ops() {
   uint64_t *keys_indexes_to_delete = new uint64_t[nchurn_ops];
   uint64_t *new_keys = new uint64_t[nchurn_ops];
   uint64_t *new_values = new uint64_t[nchurn_ops];
-  RAND_bytes((unsigned char *)new_keys, nchurn_ops * sizeof(uint64_t));
-  RAND_bytes((unsigned char *)new_values, nchurn_ops * sizeof(uint64_t));
-  RAND_bytes((unsigned char *)keys_indexes_to_delete,
-               nchurn_ops * sizeof(uint64_t));
-  for (int j = 0; j < nchurns; j++) {
-    for (uint64_t k = 0; k < nchurn_ops; k++) {
-      uint64_t i = j * nchurn_ops + k;
-      uint32_t index = keys_indexes_to_delete[i] % kv.size();
+  for (int churn_cycle = 0; churn_cycle < nchurns; churn_cycle++) {
+    RAND_bytes((unsigned char *)new_keys, nchurn_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)new_values, nchurn_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)keys_indexes_to_delete, nchurn_ops * sizeof(uint64_t));
+
+    for (uint64_t churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+      uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
       ops.push_back(hm_op{DELETE, key, value});
     }
-    for (uint64_t k = 0; k < nchurn_ops; k++) {
-      uint64_t i = j * nchurn_ops + k;
-      uint64_t key = (new_keys[i] & BITMASK(key_bits));
-      uint64_t value = (new_values[i] & BITMASK(value_bits));
+    for (uint64_t churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+      uint64_t key = (new_keys[churn_op] & BITMASK(key_bits));
+      uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
       ops.push_back(hm_op{INSERT, key, value});
       // Insert the key into the slot that was just deleted.
-      uint32_t index = keys_indexes_to_delete[i] % kv.size();
+      uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       kv[index] = make_pair(key, value);
     }
   }

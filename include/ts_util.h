@@ -149,7 +149,7 @@ static void _clear_tombstones(QF *qf) {
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
-static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
+static void _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   size_t curr_run = find_next_run(grhm, from_run);
   size_t push_start = run_start(grhm, curr_run);
@@ -193,7 +193,7 @@ static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t t
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
-static int _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
+static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   size_t curr_run = find_next_run(grhm, from_run);
   size_t push_start = run_start(grhm, curr_run);
