@@ -96,7 +96,7 @@ int grhm_insert(GRHM *grhm, uint64_t key, uint64_t value, uint8_t flags) {
       // printf("Before clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
       _rebuild(grhm);
       // printf("After clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
-      // reset_rebuild_cd(grhm);
+      reset_rebuild_cd(grhm);
     }
   return ret;
 }
