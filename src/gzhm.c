@@ -89,7 +89,8 @@ static int _rebuild(GZHM *gzhm) {
     until_run = gzhm->metadata->nslots;
     gzhm->metadata->rebuild_run = 0;
   }
-  return _rebuild_1round(gzhm, from_run, until_run, ts_space);
+  _rebuild_1round(gzhm, from_run, until_run, ts_space);
+  return 0;
 }
 
 /******************************************************************************
