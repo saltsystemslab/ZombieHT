@@ -3,21 +3,52 @@ import sys
 import pandas as pd
 from matplotlib import pyplot as plt
 
-num_keys = sys.argv[1]
-num_churn_ops = sys.argv[2]
+dir = "bench_run"
+datastructs = [
+    "rhm",
+    "trhm",
+    "grhm",
+    "gzhm"
+]
 
-print(num_keys, num_churn_ops)
+f = open("%s/test_params.txt" % (dir), "r")
+lines = f.readlines()
+key_bits = int(lines[0])
+quotient_bits = int(lines[1])
+value_bits = int(lines[2])
+load_factor = int(lines[3])
+load_factor_keys = int(lines[4])
 
-df = pd.read_csv('rhm-insert.txt', delim_whitespace=True)
-plt.plot(df["x_0"], df["y_0"])
-plt.xlabel("percent of keys inserted (%d)" % int(num_keys))
-plt.ylabel("throughput (num inserts per sec)")
+churn_points = []
+for l in lines[6:]: 
+    churn_points.append(float(l))
+print(churn_points)
+
+plt.figure(figsize=(20,6))
+for d in datastructs:
+    df = pd.read_csv('./%s/%s-load.txt' % (dir, d), delim_whitespace=True)
+    plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
+    plt.xlabel("percent of keys inserted" )
+    plt.ylabel("throughput")
+plt.legend()
+plt.title("LOAD PHASE: q_bits=%s, r_bits=%s, Load Factor=%s" 
+    % (quotient_bits, key_bits - quotient_bits + value_bits, load_factor))
 plt.savefig("plot_insert.png")
 plt.close()
 
-df = pd.read_csv('rhm-churn.txt', delim_whitespace=True)
-plt.plot(df["x_0"], df["y_0"])
-plt.xlabel("percent of churn test(%d)" % int(num_churn_ops))
-plt.ylabel("throughput (num ops per sec)")
+plt.figure(figsize=(20,6))
+for d in datastructs:
+    df = pd.read_csv('./%s/%s-churn.txt' % (dir, d), delim_whitespace=True)
+    plt.plot(df["x_0"], df["y_0"], label=d, marker="^")
+    plt.xlabel("percent of churn test" )
+    plt.ylabel("throughput")
+
+plt.vlines(0, 0, 0.3)
+for churn_point in churn_points:
+    plt.vlines(churn_point, 0, 0.3)
+plt.legend()
+plt.title("CHURN PHASE: q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
+    % (quotient_bits, key_bits - quotient_bits + value_bits, 0, 0))
 plt.savefig("plot_churn.png")
 plt.close()
+
