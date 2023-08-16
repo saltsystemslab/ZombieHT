@@ -57,7 +57,7 @@ void write_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t npoint
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(ts[exp+1] - ts[exp]);
     fprintf(fp, "%f", ((exp / 2.0) * (100.0 / npoints)));
     fprintf(fp, " %f",
-            (num_ops / npoints) / duration.count());
+            ((1.0 * num_ops / npoints) / duration.count()));
     fprintf(fp, "\n");
   }
   fclose(fp);
@@ -145,6 +145,7 @@ void parseArgs(int argc, char **argv) {
         usage(argv[0]);
         exit(1);
       }
+      break;
     case 'r':
       should_record = strtol(optarg, &term, 10);
       if (*term) {
