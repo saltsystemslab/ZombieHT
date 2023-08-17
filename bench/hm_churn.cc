@@ -43,7 +43,6 @@ int should_record = 0;
 std::string datastruct = "all";
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
-hashmap hashmap_ds = rhm;
 uint64_t num_slots = 0;
 uint64_t num_initial_load_keys = 0;
 bool is_silent = true;
@@ -237,7 +236,7 @@ std::vector<hm_op> generate_ops() {
 }
 
 void run_ops(std::string datastruct_name, std::string phase_name,
-    std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
+    hashmap hashmap_ds, std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
              std::string output_file) {
   printf("Beginning %s\n", phase_name.c_str());
   time_point<high_resolution_clock> ts[2 * npoints];
@@ -314,9 +313,9 @@ void run_churn(std::string datastruct_name, hashmap hashmap_ds, std::vector<hm_o
   std::string filename_churn = dir + datastruct_name + "-" + churn_op;
   hashmap_ds.init(num_slots, key_bits, value_bits);
   // LOAD PHASE.
-  run_ops(datastruct_name, "load phase", ops, 0, num_initial_load_keys, npoints, filename_load);
+  run_ops(datastruct_name, "load phase", hashmap_ds, ops, 0, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
-  run_ops(datastruct_name, "churn phase", ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
+  run_ops(datastruct_name, "churn phase", hashmap_ds, ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
   hashmap_ds.destroy();
 }
 
@@ -367,19 +366,18 @@ int main(int argc, char **argv) {
     run_churn("gzhm", gzhm, ops);
   } else {
   if (datastruct == "rhm") {
-    hashmap_ds = rhm;
+    run_churn("rhm", rhm, ops);
   } else if (datastruct == "trhm") {
-    hashmap_ds = trhm;
+    run_churn("trhm", trhm, ops);
   } else if (datastruct == "grhm") {
-    hashmap_ds = grhm;
+    run_churn("grhm", grhm, ops);
   } else if (datastruct == "gzhm") {
-    hashmap_ds = gzhm;
+    run_churn("gzhm", gzhm, ops);
   } else {
     fprintf(stderr, "Unknown datastruct.\n");
     usage(argv[0]);
     exit(1);
   }
-  run_churn(datastruct, hashmap_ds, ops);
   }
   return 0;
 }
