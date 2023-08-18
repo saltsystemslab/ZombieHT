@@ -853,10 +853,13 @@ bool trhm_free(RHM *rhm) {
 }
 
 int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
+#if 0
   if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) {
-    abort();
-    return QF_NO_SPACE;
+    trhm_rebuild(qf, QF_NO_LOCK);
+    qf_sync_counters(qf);
+    assert(qf_get_num_occupied_slots(qf) < qf->metadata->nslots * 0.99);
   }
+#endif
   if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
     fprintf(stderr, "RobinHood Tombstone HM assumes key is hash for now.");
     abort();
