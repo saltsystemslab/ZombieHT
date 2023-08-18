@@ -36,7 +36,7 @@ static void _clear_tombstones_range(QF *qf, size_t from_run, size_t until_run) {
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run(qf, &push_start, &push_end);
     // fix block offset if necessary.
-    _recalculate_block_offsets(qf, curr_run);
+    _recalculate_block_offsets(qf, curr_run, push_end);
     // find the next run
     curr_run = find_next_run(qf, ++curr_run);
     if (push_start < curr_run) {  // Reached the end of the cluster.

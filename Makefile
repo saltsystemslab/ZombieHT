@@ -34,7 +34,7 @@ CC = g++ -std=c++11
 CXX = g++ -std=c++11
 LD= g++ -std=c++11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) -m64 -I. -Iinclude -Itests
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) -m64 -I. -Iinclude -Itests -D_BLOCKOFFSET_4_NUM_RUNENDS
 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
 
@@ -87,9 +87,9 @@ $(OBJDIR)/test_threadsafe.o: 	$(LOC_INCLUDE)/gqf.h \
 $(OBJDIR)/bm.o:								$(LOC_TEST)/gqf_wrapper.h \
 															$(LOC_INCLUDE)/partitioned_counter.h
 
-$(OBJDIR)/hm_churn.o:					$(LOC_TEST)/grhm_wrapper.h \
-															$(LOC_TEST)/rhm_wrapper.h \
+$(OBJDIR)/hm_churn.o:					$(LOC_TEST)/rhm_wrapper.h \
 															$(LOC_TEST)/trhm_wrapper.h \
+															$(LOC_TEST)/grhm_wrapper.h \
 															$(LOC_TEST)/gzhm_wrapper.h
 
 $(OBJDIR)/test_runner.o:			$(LOC_TEST)/grhm_wrapper.h \

@@ -499,14 +499,49 @@ static inline size_t runends_cnt(const QF *qf, size_t start, size_t len) {
   return cnt;
 }
 
+/* Return num of occupieds in range [start, start+end). */
+static inline size_t occupieds_cnt(const QF *qf, size_t start, size_t len) {
+  size_t cnt = 0;
+  size_t end = start + len;
+  size_t block_i = start / QF_SLOTS_PER_BLOCK;
+  size_t bstart = start % QF_SLOTS_PER_BLOCK;
+  do {
+    size_t word = get_block(qf, block_i)->occupieds[0];
+    cnt += popcntv(word, bstart);
+    block_i++;
+    bstart = 0;
+  } while ((block_i) * QF_SLOTS_PER_BLOCK <= end);
+  size_t word = get_block(qf, block_i-1)->occupieds[0];
+  cnt -= popcntv(word, end % QF_SLOTS_PER_BLOCK);
+  return cnt;
+}
+
 /* Return pos of the next r occupieds in range [index, nslots). 0 for the first.
  * If not found, return nslots.
  */
-static inline size_t occupieds_rank(const QF *qf, size_t index, size_t r) {
+static inline size_t occupieds_select(const QF *qf, size_t index, size_t r) {
   size_t block_i = index / QF_SLOTS_PER_BLOCK;
   size_t bstart = index % QF_SLOTS_PER_BLOCK;
   do {
     size_t word = get_block(qf, block_i)->occupieds[0];
+    size_t pos = bitselectv(word, bstart, r);
+    if (pos < sizeof(word) * 8)
+      return block_i * QF_SLOTS_PER_BLOCK + pos;
+    r -= popcntv(word, bstart);
+    bstart = 0;
+    block_i++;
+  } while (block_i < qf->metadata->nblocks);
+  return qf->metadata->nslots;
+}
+
+/* Return pos of the next r runends in range [index, nslots). 0 for the first.
+ * If not found, return nslots.
+ */
+static inline size_t runends_select(const QF *qf, size_t index, size_t r) {
+  size_t block_i = index / QF_SLOTS_PER_BLOCK;
+  size_t bstart = index % QF_SLOTS_PER_BLOCK;
+  do {
+    uint64_t word = get_block(qf, block_i)->runends[0];
     size_t pos = bitselectv(word, bstart, r);
     if (pos < sizeof(word) * 8)
       return block_i * QF_SLOTS_PER_BLOCK + pos;
@@ -607,9 +642,14 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
 
 #endif
 
+static inline int offset_lower_bound(const QF *qf, uint64_t slot_index);
 static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index);
+static void _recalculate_block_offsets(QF *qf, size_t from_index, size_t to_index);
 
 static inline uint64_t block_offset(const QF *qf, uint64_t blockidx) {
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+  return get_block(qf, blockidx)->offset;
+#else
   if (blockidx == 0)
     return 0;
   /* If we have extended counters and a 16-bit (or larger) offset
@@ -623,6 +663,7 @@ static inline uint64_t block_offset(const QF *qf, uint64_t blockidx) {
 
   return run_end(qf, QF_SLOTS_PER_BLOCK * blockidx - 1) -
          QF_SLOTS_PER_BLOCK * blockidx + 1;
+#endif
 }
 
 /* Return the end index of a run if the run exists */
@@ -630,7 +671,11 @@ static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
   uint64_t bucket_block_index = hash_bucket_index / QF_SLOTS_PER_BLOCK;
   uint64_t bucket_intrablock_offset = hash_bucket_index % QF_SLOTS_PER_BLOCK;
   uint64_t bucket_blocks_offset = block_offset(qf, bucket_block_index);
-
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+  size_t diff = offset_lower_bound(qf, hash_bucket_index);
+  if (diff == 0) return hash_bucket_index;  // empty slot.
+  return runends_select(qf, hash_bucket_index, diff-1);
+#else
   uint64_t bucket_intrablock_rank =
       bitrank(get_block(qf, bucket_block_index)->occupieds[0],
               bucket_intrablock_offset);
@@ -673,6 +718,7 @@ static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
     return hash_bucket_index;
   else
     return runend_index;
+#endif
 }
 
 /* Return n_occupieds in [0, slot_index] minus n_runends in [0, slot_index) */
@@ -680,23 +726,38 @@ static inline int offset_lower_bound(const QF *qf, uint64_t slot_index) {
   const qfblock *b = get_block(qf, slot_index / QF_SLOTS_PER_BLOCK);
   const uint64_t slot_offset = slot_index % QF_SLOTS_PER_BLOCK;
   const uint64_t boffset = b->offset;
-  // Extract the slot_offset+1 right most bits of occupieds
   const uint64_t occupieds = b->occupieds[0] & BITMASK(slot_offset + 1);
+  const uint64_t runends = (b->runends[0] & BITMASK(slot_offset));
   assert(QF_SLOTS_PER_BLOCK == 64);
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+  return popcnt(occupieds) + boffset - popcnt(runends);
+#else
   if (boffset <= slot_offset) {
-    // Extract the slot_offset right most bits of occupieds
-    const uint64_t runends = (b->runends[0] & BITMASK(slot_offset)) >> boffset;
-    return popcnt(occupieds) - popcnt(runends);
+    return popcnt(occupieds) - popcnt(runends >> boffset);
   }
   return boffset - slot_offset + popcnt(occupieds);
+#endif
 }
 
 static inline int is_empty(const QF *qf, uint64_t slot_index) {
-  // TODO: Try to check if is tombstone first
   return offset_lower_bound(qf, slot_index) == 0;
 }
 
 static inline uint64_t find_first_empty_slot(QF *qf, uint64_t from, uint64_t *empty_slot) {
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+  size_t block_i = from / QF_SLOTS_PER_BLOCK;
+  size_t bstart = from % QF_SLOTS_PER_BLOCK;
+  int diff = offset_lower_bound(qf, from);  // diff between occupieds and runends
+  while (diff > 0)
+  {
+    size_t next = runends_select(qf, from, diff - 1) + 1;
+    diff = occupieds_cnt(qf, from + 1, next - from);
+    from = next;
+  }
+  *empty_slot = from;
+  return 0;
+#else
+#endif
   do {
     int t = offset_lower_bound(qf, from);
     if (t < 0) {
@@ -1006,32 +1067,7 @@ remove_tombstones(
     METADATA_WORD(qf, occupieds, bucket_index) &=
         ~(1ULL << (bucket_index % 64));
 
-  // update the offset bits.
-  // find the number of occupied slots in the original_bucket block.
-  // Then find the runend slot corresponding to the last run in the
-  // original_bucket block.
-  // Update the offset of the block to which it belongs.
-  uint64_t original_block = original_bucket / QF_SLOTS_PER_BLOCK;
-    while (1) {
-      uint64_t last_occupieds_hash_index =
-          QF_SLOTS_PER_BLOCK * original_block + (QF_SLOTS_PER_BLOCK - 1);
-      uint64_t runend_index = run_end(qf, last_occupieds_hash_index);
-      // runend spans across the block
-      // update the offset of the next block
-      if (runend_index / QF_SLOTS_PER_BLOCK ==
-          original_block) { // if the run ends in the same block
-        if (get_block(qf, original_block + 1)->offset == 0)
-          break;
-        get_block(qf, original_block + 1)->offset = 0;
-      } else { // if the last run spans across the block
-        size_t block_offset = runend_index - last_occupieds_hash_index;
-        assert(block_offset < 255);
-        if (get_block(qf, original_block + 1)->offset == block_offset)
-          break;
-        get_block(qf, original_block + 1)->offset = block_offset;
-      }
-      original_block++;
-    }
+  _recalculate_block_offsets(qf, original_bucket, current_slot);
 
   return ret_current_distance;
 }
@@ -1111,35 +1147,7 @@ remove_replace_slots_and_shift_remainders_and_runends_and_offsets(
   if (operation && !total_remainders)
     RESET_O(qf, bucket_index);
 
-  // update the offset bits.
-  // find the number of occupied slots in the original_bucket block.
-  // Then find the runend slot corresponding to the last run in the
-  // original_bucket block.
-  // Update the offset of the block to which it belongs.
-  uint64_t original_block = original_bucket / QF_SLOTS_PER_BLOCK;
-  if (old_length >
-      total_remainders) { // we only update offsets if we shift/delete anything
-    while (1) {
-      uint64_t last_occupieds_hash_index =
-          QF_SLOTS_PER_BLOCK * original_block + (QF_SLOTS_PER_BLOCK - 1);
-      uint64_t runend_index = run_end(qf, last_occupieds_hash_index);
-      // runend spans across the block
-      // update the offset of the next block
-      if (runend_index / QF_SLOTS_PER_BLOCK ==
-          original_block) { // if the run ends in the same block
-        if (get_block(qf, original_block + 1)->offset == 0)
-          break;
-        get_block(qf, original_block + 1)->offset = 0;
-      } else { // if the last run spans across the block
-        size_t block_offset = runend_index - last_occupieds_hash_index;
-        assert(block_offset < 255);
-        if (get_block(qf, original_block + 1)->offset == block_offset)
-          break;
-        get_block(qf, original_block + 1)->offset = block_offset;
-      }
-      original_block++;
-    }
-  }
+  _recalculate_block_offsets(qf, original_bucket, current_slot);
 
   int num_slots_freed = old_length - total_remainders;
   modify_metadata(&qf->runtimedata->pc_noccupied_slots, -num_slots_freed);
@@ -1201,7 +1209,7 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
   *run_start_index = MAX(*run_start_index, quotient);
   if (!is_occupied(qf, quotient)) {
     *index = *run_start_index;
-    *run_end_index = *run_start_index + 1;
+    *run_end_index = *run_start_index;
     return 0;
   }
   *run_end_index = run_end(qf, quotient) + 1;
@@ -1265,14 +1273,36 @@ static size_t find_next_run(const QF *qf, size_t run) {
   return slot_offset + block_index * QF_SLOTS_PER_BLOCK;
 }
 
-
-/* update the offset bits.
- * find the number of occupied slots in the original_bucket block.
- * Then find the runend slot corresponding to the last run in the
- * original_bucket block.
- * Update the offset of the block to which it belongs.
+/* Update the block offsets of the following blocks.
+ * Assume the current block offset is correct.
  */
-static void _recalculate_block_offsets(QF *qf, size_t index) {
+static void _recalculate_block_offsets(QF *qf, size_t from_index, size_t to_index) {
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+/* If the block offset is the num of overflowed runends.
+ * Assume the current block offset, recalculate the following block offsets
+ * until found a correct one again.
+ */
+  size_t from_b = from_index / QF_SLOTS_PER_BLOCK;
+  size_t to_b = to_index / QF_SLOTS_PER_BLOCK;
+  qfblock *block = get_block(qf, from_b);
+  size_t offset = block->offset;
+  while (from_b < to_b) {
+    // calculate the next block offset
+    size_t n_occupieds = popcnt(block->occupieds[0]);
+    size_t n_runends = popcnt(block->runends[0]);
+    offset = offset + n_occupieds - n_runends;
+    // update the next block offset
+    block = get_block(qf, ++from_b);
+    block->offset = offset;
+  }
+  assert(from_b < qf->metadata->nblocks);
+#else
+  /* 
+  * find the number of occupied slots in the original_bucket block.
+  * Then find the runend slot corresponding to the last run in the
+  * original_bucket block.
+  * Update the offset of the block to which it belongs.
+  */
   size_t original_block = index / QF_SLOTS_PER_BLOCK;
   while (1) {
     size_t last_occupieds_hash_index =
@@ -1295,6 +1325,7 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
     }
     original_block++;
   }
+#endif
 }
 
 #endif
