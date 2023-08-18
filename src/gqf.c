@@ -892,8 +892,10 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
       return QF_KEY_EXISTS;
     uint64_t available_slot_index = find_next_tombstone(qf, insert_index);
     ret_distance = available_slot_index - hash_bucket_index + 1;
-    if (available_slot_index >= qf->metadata->xnslots)
-      abort();
+    if (available_slot_index >= qf->metadata->xnslots) {
+      fprintf(stderr, "Reached xnslots.\n");
+      return QF_NO_SPACE;
+    }
       // return QF_NO_SPACE;
     // counts
     modify_metadata(&qf->runtimedata->pc_nelts, 1);
@@ -943,11 +945,19 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
 
 int trhm_insert(TRHM *trhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(trhm, key, value, flags);
-  if (ret >= 0)
-    if (--(trhm->metadata->rebuild_cd) == 0) {
-      trhm_rebuild(trhm, QF_NO_LOCK);
-      reset_rebuild_cd(trhm);
-    }
+  if (ret == QF_NO_SPACE) {
+    trhm_rebuild(trhm, QF_NO_LOCK);
+    ret = qft_insert(trhm, key, value, flags);
+  }
+  if (ret == QF_KEY_EXISTS) return ret;
+  if (ret < 0) {
+    fprintf(stderr, "Insert failed, return %d\n", ret);
+    return ret;
+  }
+  if (--(trhm->metadata->rebuild_cd) == 0) {
+    trhm_rebuild(trhm, QF_NO_LOCK);
+    reset_rebuild_cd(trhm);
+  }
   return ret;
 }
 
