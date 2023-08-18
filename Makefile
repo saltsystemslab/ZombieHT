@@ -87,7 +87,10 @@ $(OBJDIR)/test_threadsafe.o: 	$(LOC_INCLUDE)/gqf.h \
 $(OBJDIR)/bm.o:								$(LOC_TEST)/gqf_wrapper.h \
 															$(LOC_INCLUDE)/partitioned_counter.h
 
-$(OBJDIR)/hm_churn.o:					$(LOC_TEST)/rhm_wrapper.h $(LOC_TEST)/trhm_wrapper.h
+$(OBJDIR)/hm_churn.o:					$(LOC_TEST)/grhm_wrapper.h \
+															$(LOC_TEST)/rhm_wrapper.h \
+															$(LOC_TEST)/trhm_wrapper.h \
+															$(LOC_TEST)/gzhm_wrapper.h
 
 $(OBJDIR)/test_runner.o:			$(LOC_TEST)/grhm_wrapper.h \
 															$(LOC_TEST)/rhm_wrapper.h \
@@ -97,7 +100,13 @@ $(OBJDIR)/test_runner.o:			$(LOC_TEST)/grhm_wrapper.h \
 
 # dependencies between .o files and .cc (or .c) files
 
-$(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c $(LOC_INCLUDE)/gqf.h $(LOC_INCLUDE)/rhm.h $(LOC_INCLUDE)/trhm.h $(LOC_INCLUDE)/util.h $(LOC_INCLUDE)/ts_util.h
+$(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c \
+															$(LOC_INCLUDE)/gqf.h \
+															$(LOC_INCLUDE)/rhm.h \
+															$(LOC_INCLUDE)/trhm.h \
+															$(LOC_INCLUDE)/hashutil.h \
+															$(LOC_INCLUDE)/util.h \
+															$(LOC_INCLUDE)/ts_util.h
 $(OBJDIR)/grhm.o:							$(LOC_SRC)/grhm.c \
 															$(LOC_INCLUDE)/rhm.h \
 															$(LOC_INCLUDE)/trhm.h \

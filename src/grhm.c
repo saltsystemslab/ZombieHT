@@ -19,6 +19,7 @@ static void reset_rebuild_cd(GRHM *grhm) {
     size_t nslots = grhm->metadata->nslots;
     size_t nelts = grhm->metadata->nelts;
     grhm->metadata->rebuild_cd = (nslots - nelts) / 4;
+    fprintf(stdout, "Rebuild cd: %u\n", grhm->metadata->rebuild_cd);
     // double x = (double)nslots / (double)(nslots - nelts);
     // grhm->metadata->rebuild_cd = (int)((double)nslots/log(x+2));
   }
@@ -60,7 +61,8 @@ static int _rebuild_2round(GRHM *grhm) {
 
 static int _rebuild(GRHM *grhm) {
   size_t ts_space = _get_ts_space(grhm);
-  _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
+  // _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
+  _rebuild_2round(grhm);
   return 0;
 }
 
@@ -77,6 +79,7 @@ uint64_t grhm_init(GRHM *grhm, uint64_t nslots, uint64_t key_bits,
 bool grhm_malloc(GRHM *grhm, uint64_t nslots, uint64_t key_bits,
                 uint64_t value_bits, enum qf_hashmode hash, uint32_t seed) {
   bool ret = qf_malloc(grhm, nslots, key_bits, value_bits, hash, seed);
+  fprintf(stdout, "Initializing GRHM...\n");
   reset_rebuild_cd(grhm);
   return ret;
 }
