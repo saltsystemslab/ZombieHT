@@ -15,7 +15,6 @@
 static inline int _insert_ts_at(QF *const qf, size_t index, size_t run) {
   if (is_tombstone(qf, index)) return 0;
   size_t available_slot_index = find_next_tombstone(qf, index);
-  // TODO: Handle return code correctly.
   if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
   // Change counts
   if (is_empty(qf, available_slot_index))
@@ -42,27 +41,16 @@ static inline int _insert_ts_at(QF *const qf, size_t index, size_t run) {
   return available_slot_index - index;
 }
 
-/* Find next tombstone/empty `available` in range [index, nslots)
- * Shift everything in range [index, available) by 1 to the big direction.
- * Make a tombstone at `index`
+/* Find the smallest existing run >= `run`. 
+ * Insert a tombstone at the beginning of the run.
  * Return:
  *     >=0: Distance between index and `available`.
  */
-static inline int _insert_ts(QF *const qf, size_t run) {
+static inline int _insert_pts(QF *const qf, size_t run) {
   size_t index = run_start(qf, run);
-  if (is_tombstone(qf, index)) return 0;
-  size_t available_slot_index = find_next_tombstone(qf, index);
-  // TODO: Handle return code correctly.
-  if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
-  // Change counts
-  if (is_empty(qf, available_slot_index))
-    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-  // shift slot and metadata
-  shift_remainders(qf, index, available_slot_index);
-  shift_runends_tombstones(qf, index, available_slot_index, 1);
-  SET_T(qf, index);
-  _recalculate_block_offsets(qf, run);
-  return available_slot_index - index;
+  if (index > run)  // Find the right run for maitaining the block offset.
+    run = find_next_run(qf, run);
+  return _insert_ts_at(qf, index, run);
 }
 
 
@@ -149,7 +137,7 @@ static void _clear_tombstones(QF *qf) {
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
-static void _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
+static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   size_t curr_run = find_next_run(grhm, from_run);
   size_t push_start = run_start(grhm, curr_run);
@@ -161,8 +149,8 @@ static void _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t 
         push_start += 1;
       } else {
         int ret = _insert_ts_at(grhm, push_start, curr_run);
+        if (ret < 0) return ret;
         push_end = push_start += 1;
-        if (ret < 0) abort();
         size_t n_skipped_runs = runends_cnt(grhm, push_start, ret);
         if (n_skipped_runs > 0) {
           curr_run = occupieds_rank(grhm, curr_run, n_skipped_runs);
@@ -187,8 +175,8 @@ static void _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t 
       push_end = MAX(push_end, push_start);
     }
   }
+  return 0;
 }
-
 
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.

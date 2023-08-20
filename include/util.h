@@ -625,7 +625,10 @@ static inline uint64_t block_offset(const QF *qf, uint64_t blockidx) {
          QF_SLOTS_PER_BLOCK * blockidx + 1;
 }
 
-/* Return the end index of a run if the run exists */
+/* Assume the block offset of `hash_bucket_index` is correct,
+ * Find the biggest run which is less or equal to `hash_bucket_index`,
+ * Then find the end of the run. 
+ * Return max(end, hash_bucket_index) */
 static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
   uint64_t bucket_block_index = hash_bucket_index / QF_SLOTS_PER_BLOCK;
   uint64_t bucket_intrablock_offset = hash_bucket_index % QF_SLOTS_PER_BLOCK;
@@ -649,22 +652,14 @@ static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
   uint64_t runend_block_offset =
       bitselectv(get_block(qf, runend_block_index)->runends[0],
                  runend_ignore_bits, runend_rank);
-  if (runend_block_offset == QF_SLOTS_PER_BLOCK) {
-    if (bucket_blocks_offset == 0 && bucket_intrablock_rank == 0) {
-      /* The block begins in empty space, and this bucket is in that region of
-       * empty space */
-      return hash_bucket_index;
-    } else {
-      do {
-        runend_rank -= popcntv(get_block(qf, runend_block_index)->runends[0],
-                               runend_ignore_bits);
-        runend_block_index++;
-        runend_ignore_bits = 0;
-        runend_block_offset =
-            bitselectv(get_block(qf, runend_block_index)->runends[0],
-                       runend_ignore_bits, runend_rank);
-      } while (runend_block_offset == QF_SLOTS_PER_BLOCK);
-    }
+  while (runend_block_offset == QF_SLOTS_PER_BLOCK) {
+    runend_rank -= popcntv(get_block(qf, runend_block_index)->runends[0],
+                            runend_ignore_bits);
+    runend_block_index++;
+    runend_ignore_bits = 0;
+    runend_block_offset =
+        bitselectv(get_block(qf, runend_block_index)->runends[0],
+                    runend_ignore_bits, runend_rank);
   }
 
   uint64_t runend_index =
@@ -677,9 +672,10 @@ static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index) {
 
 /* Return n_occupieds in [0, slot_index] minus n_runends in [0, slot_index) */
 static inline int offset_lower_bound(const QF *qf, uint64_t slot_index) {
-  const qfblock *b = get_block(qf, slot_index / QF_SLOTS_PER_BLOCK);
+  const size_t block_id = slot_index / QF_SLOTS_PER_BLOCK;
+  const qfblock *b = get_block(qf, block_id);
   const uint64_t slot_offset = slot_index % QF_SLOTS_PER_BLOCK;
-  const uint64_t boffset = b->offset;
+  const uint64_t boffset = block_offset(qf, block_id);
   // Extract the slot_offset+1 right most bits of occupieds
   const uint64_t occupieds = b->occupieds[0] & BITMASK(slot_offset + 1);
   assert(QF_SLOTS_PER_BLOCK == 64);
@@ -942,101 +938,6 @@ static inline void shift_runends_tombstones(QF *qf, int64_t first,
 }
 
 static inline int
-remove_tombstones(
-    QF *qf, int operation, uint64_t bucket_index, uint64_t tombstone_start_index, uint64_t num_tombstones) {
-
-  // TODO: !!!!!!!!!!!! UPDATE METADATA !!!!!!!!!!!!
-
-  // If this is the last thing in its run, then we may need to set a new runend
-  // bit
-  if (is_runend(qf, tombstone_start_index + num_tombstones - 1)) {
-    if (tombstone_start_index> bucket_index &&
-               !is_runend(qf, tombstone_start_index - 1)) {
-      // If we're deleting this entry entirely, but it is not the first entry in
-      // this run, then set the preceding entry to be the runend
-      METADATA_WORD(qf, runends, tombstone_start_index - 1) |=
-          1ULL << ((tombstone_start_index - 1) % 64);
-    }
-  }
-
-  // shift slots back one run at a time
-  uint64_t original_bucket = bucket_index;
-  uint64_t current_bucket = bucket_index;
-  uint64_t current_slot = tombstone_start_index;
-  uint64_t current_distance = num_tombstones;
-  int ret_current_distance = current_distance;
-
-  while (current_distance > 0) {
-    if (is_runend(qf, current_slot + current_distance - 1)) {
-      do {
-        current_bucket++;
-      } while (current_bucket < current_slot + current_distance &&
-               !is_occupied(qf, current_bucket));
-    }
-
-    if (current_bucket <= current_slot) {
-      set_slot(qf, current_slot, get_slot(qf, current_slot + current_distance));
-      if (is_runend(qf, current_slot) !=
-          is_runend(qf, current_slot + current_distance))
-        METADATA_WORD(qf, runends, current_slot) ^= 1ULL << (current_slot % 64);
-
-      if (is_tombstone(qf, current_slot) !=
-          is_tombstone(qf, current_slot + current_distance))
-        METADATA_WORD(qf, tombstones, current_slot) ^= 1ULL << (current_slot % 64);
-
-      current_slot++;
-
-    } else if (current_bucket <= current_slot + current_distance) {
-      uint64_t i;
-      for (i = current_slot; i < current_slot + current_distance; i++) {
-        set_slot(qf, i, 0);
-        METADATA_WORD(qf, runends, i) &= ~(1ULL << (i % 64));
-        METADATA_WORD(qf, tombstones, i) |= (1ULL << (i % 64));
-      }
-      current_distance = current_slot + current_distance - current_bucket;
-      current_slot = current_bucket;
-    } else {
-      current_distance = 0;
-    }
-  }
-
-  // reset the occupied bit of the hash bucket index if the hash is the
-  // only item in the run and is removed completely.
-  if (operation)
-    METADATA_WORD(qf, occupieds, bucket_index) &=
-        ~(1ULL << (bucket_index % 64));
-
-  // update the offset bits.
-  // find the number of occupied slots in the original_bucket block.
-  // Then find the runend slot corresponding to the last run in the
-  // original_bucket block.
-  // Update the offset of the block to which it belongs.
-  uint64_t original_block = original_bucket / QF_SLOTS_PER_BLOCK;
-    while (1) {
-      uint64_t last_occupieds_hash_index =
-          QF_SLOTS_PER_BLOCK * original_block + (QF_SLOTS_PER_BLOCK - 1);
-      uint64_t runend_index = run_end(qf, last_occupieds_hash_index);
-      // runend spans across the block
-      // update the offset of the next block
-      if (runend_index / QF_SLOTS_PER_BLOCK ==
-          original_block) { // if the run ends in the same block
-        if (get_block(qf, original_block + 1)->offset == 0)
-          break;
-        get_block(qf, original_block + 1)->offset = 0;
-      } else { // if the last run spans across the block
-        size_t block_offset = runend_index - last_occupieds_hash_index;
-        assert(block_offset < 255);
-        if (get_block(qf, original_block + 1)->offset == block_offset)
-          break;
-        get_block(qf, original_block + 1)->offset = block_offset;
-      }
-      original_block++;
-    }
-
-  return ret_current_distance;
-}
-
-static inline int
 remove_replace_slots_and_shift_remainders_and_runends_and_offsets(
     QF *qf,
     int operation,              // only_item_in_the_run
@@ -1198,15 +1099,14 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
   *run_start_index = 0;
   if (quotient != 0)
     *run_start_index = run_end(qf, quotient - 1) + 1;
-  *run_start_index = MAX(*run_start_index, quotient);
+  *index = *run_start_index;
   if (!is_occupied(qf, quotient)) {
-    *index = *run_start_index;
-    *run_end_index = *run_start_index + 1;
+    // no such run
+    *run_end_index = *run_start_index;
     return 0;
   }
   *run_end_index = run_end(qf, quotient) + 1;
   uint64_t curr_remainder;
-  *index = *run_start_index;
   do {
     if (!is_tombstone(qf, *index)) {
       curr_remainder = get_slot(qf, *index) >> qf->metadata->value_bits;
@@ -1241,11 +1141,10 @@ static inline uint64_t bsf_from(const uint64_t val, int from)
 }
 
 
-/* Return the start index of a run. */
+/* Return the start index of a run if it exists or where it should be. */
 static size_t run_start(const QF *const qf, const size_t quotient) {
-  size_t start = 0;
-  if (quotient != 0) start = run_end(qf, quotient - 1) + 1;
-  return MAX(start, quotient);
+  if (quotient == 0) return 0;
+  else return run_end(qf, quotient - 1) + 1;
 }
 
 
@@ -1273,27 +1172,31 @@ static size_t find_next_run(const QF *qf, size_t run) {
  * Update the offset of the block to which it belongs.
  */
 static void _recalculate_block_offsets(QF *qf, size_t index) {
-  size_t original_block = index / QF_SLOTS_PER_BLOCK;
-  while (1) {
-    size_t last_occupieds_hash_index =
-        QF_SLOTS_PER_BLOCK * original_block + (QF_SLOTS_PER_BLOCK - 1);
-    size_t runend_index = run_end(qf, last_occupieds_hash_index);
+  size_t block_id = index / QF_SLOTS_PER_BLOCK;
+  unsigned int next_offset;
+  while (block_id < qf->metadata->nblocks) {
+    size_t block_last_run =
+        QF_SLOTS_PER_BLOCK * block_id + (QF_SLOTS_PER_BLOCK - 1);
+    size_t block_runend_index = run_end(qf, block_last_run);
     // runend spans across the block
     // update the offset of the next block
-    if (runend_index / QF_SLOTS_PER_BLOCK ==
-        original_block) { // if the run ends in the same block
-      if (get_block(qf, original_block + 1)->offset == 0)
-        break;
-      get_block(qf, original_block + 1)->offset = 0;
+    if (block_runend_index <= block_last_run) {
+      // if the run ends in the same block
+      next_offset = 0;
     } else { // if the last run spans across the block
-      size_t block_offset = runend_index - last_occupieds_hash_index;
+      next_offset = block_runend_index - block_last_run;
       // printf("block: %u, offset: %u\n", original_block, block_offset);
-      assert(block_offset < 255);
-      if (get_block(qf, original_block + 1)->offset ==block_offset)
-        break;
-      get_block(qf, original_block + 1)->offset = block_offset;
+      assert(next_offset < 255);
     }
-    original_block++;
+    block_id++;
+    if (next_offset >= 255) {
+      printf("block: %u, offset: %u\n", block_id, next_offset);
+      get_block(qf, block_id)->offset = 255;
+      continue;
+    }
+    if (block_offset(qf, block_id) == next_offset)
+      break;
+    get_block(qf, block_id)->offset = next_offset;
   }
 }
 

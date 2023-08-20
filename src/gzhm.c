@@ -56,7 +56,7 @@ static int _insert_pts_range(GZHM *gzhm, size_t from_run, size_t until_run) {
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   while (pts < until_run) {
     // size_t runstart = run_start(gzhm, pts);
-    int ret = _insert_ts(gzhm, pts);
+    int ret = _insert_pts(gzhm, pts);
     if (ret < 0) abort();
     pts += ts_space;
   }
@@ -89,8 +89,7 @@ static int _rebuild(GZHM *gzhm) {
     until_run = gzhm->metadata->nslots;
     gzhm->metadata->rebuild_run = 0;
   }
-  _rebuild_1round(gzhm, from_run, until_run, ts_space);
-  return 0;
+  return _rebuild_1round(gzhm, from_run, until_run, ts_space);
 }
 
 /******************************************************************************

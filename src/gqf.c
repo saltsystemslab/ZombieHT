@@ -849,8 +849,7 @@ bool trhm_free(RHM *rhm) {
 }
 
 int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
-  if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) {
-    abort();
+  if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots*.99) {
     return QF_NO_SPACE;
   }
   if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
@@ -936,11 +935,19 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
 
 int trhm_insert(TRHM *trhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(trhm, key, value, flags);
-  if (ret >= 0)
-    if (--(trhm->metadata->rebuild_cd) == 0) {
-      trhm_rebuild(trhm, QF_NO_LOCK);
-      reset_rebuild_cd(trhm);
-    }
+  if (ret == QF_NO_SPACE) {
+    trhm_rebuild(trhm, QF_NO_LOCK);
+    ret = qft_insert(trhm, key, value, flags);
+  }
+  if (ret == QF_KEY_EXISTS) return ret;
+  if (ret < 0) {
+    fprintf(stderr, "Insert failed, return %d\n", ret);
+    return ret;
+  }
+  if (--(trhm->metadata->rebuild_cd) == 0) {
+    trhm_rebuild(trhm, QF_NO_LOCK);
+    reset_rebuild_cd(trhm);
+  }
   return ret;
 }
 
@@ -1017,55 +1024,6 @@ int qft_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
 
 int trhm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
   return qft_query(qf, key, value, flags);
-}
-
-uint64_t trhm_clear_tombstones_in_run(QF *qf, uint64_t home_slot, uint64_t run_start, uint8_t flags) {
-	uint64_t idx = run_start;
-	uint64_t runend_index = run_end(qf, home_slot);
-	while (idx <= runend_index) {
-		if (!is_tombstone(qf, idx)) {
-			idx++;
-			continue;
-		}
-		uint64_t tombstone_start = idx;
-		uint64_t tombstone_end = idx;
-		// TODO: There must be a more efficient way to find this.
-		while (is_tombstone(qf, tombstone_end) && tombstone_end <= runend_index) {
-			tombstone_end++;
-		}
-		int only_element = (tombstone_start == run_start && tombstone_end == runend_index+1);
-		// tombstone_end is one step ahead of the last tombstone in this cluster.
-		remove_tombstones(
-			qf, only_element, home_slot, tombstone_start, tombstone_end - tombstone_start
-		);
-		if (only_element) {
-			runend_index = run_start;
-			break;
-		}
-		runend_index -= (tombstone_end-tombstone_start);
-		idx++;
-	}
-	return runend_index;
-}
-
-int trhm_clear_tombstones(QF *qf, uint8_t flags) {
-	// TODO: Lock the whole Hashset.
-  printf("Before clear, nelts: %u, noccupied_slots: %u\n", qf->metadata->nelts, qf->metadata->noccupied_slots);
-  // qf_dump(qf);
-	uint64_t run_start = 0;
-	for (uint64_t idx=0; idx < qf->metadata->nslots; idx++) {
-		if (idx > run_start) {
-			run_start = idx;
-		}
-		if (is_occupied(qf, idx)) {
-			run_start = trhm_clear_tombstones_in_run(qf, idx, run_start, flags);
-			run_start++;
-		}
-	}
-  printf("Before clear, nelts: %u, noccupied_slots: %u\n", qf->metadata->nelts, qf->metadata->noccupied_slots);
-  // printf("AFTER CLEARING\n");
-  // qf_dump(qf);
-  return 0;
 }
 
 /* Rebuild run by run. 

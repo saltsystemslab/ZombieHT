@@ -39,14 +39,14 @@ static size_t _get_ts_space(GRHM *grhm) {
 }
 
 /* Insert primitive tombstones. */
-static int _insert_pts(GRHM *grhm) {
+static int _insert_all_pts(GRHM *grhm) {
   // Find the space between primitive tombstones.
   size_t ts_space = _get_ts_space(grhm);
   size_t pts = ts_space - 1;
   while (pts < grhm->metadata->nslots) {
     // size_t runstart = run_start(grhm, pts);
     // int ret = _insert_ts_at(grhm, runstart);
-    int ret = _insert_ts(grhm, pts);
+    int ret = _insert_pts(grhm, pts);
     if (ret < 0) abort();
     pts += ts_space;
   }
@@ -56,13 +56,7 @@ static int _insert_pts(GRHM *grhm) {
 /* Rebuild with 2 rounds. */
 static int _rebuild_2round(GRHM *grhm) {
   _clear_tombstones(grhm);
-  return _insert_pts(grhm);
-}
-
-static int _rebuild(GRHM *grhm) {
-  size_t ts_space = _get_ts_space(grhm);
-  // _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
-  _rebuild_2round(grhm);
+  return _insert_all_pts(grhm);
   return 0;
 }
 
@@ -94,13 +88,19 @@ bool grhm_free(GRHM *grhm) {
 
 int grhm_insert(GRHM *grhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(grhm, key, value, flags);
-  if (ret >= 0)
-    if (--(grhm->metadata->rebuild_cd) == 0) {
-      // printf("Before clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
-      _rebuild(grhm);
-      // printf("After clear, nelts: %u, noccupied_slots: %u\n", grhm->metadata->nelts, grhm->metadata->noccupied_slots);
-      reset_rebuild_cd(grhm);
-    }
+  if (ret == QF_NO_SPACE) {
+    ret = grhm_rebuild(grhm, flags);
+    if (ret < 0) return ret;
+    ret = qft_insert(grhm, key, value, flags);
+  }
+  if (ret == QF_KEY_EXISTS) return ret;
+  if (ret < 0) {
+    fprintf(stderr, "Insert failed: %d\n", ret);
+    abort();
+  }
+  if (--(grhm->metadata->rebuild_cd) == 0) {
+    return grhm_rebuild(grhm, flags);
+  }
   return ret;
 }
 
@@ -108,8 +108,18 @@ int grhm_remove(GRHM *grhm, uint64_t key, uint8_t flags) {
   return qft_remove(grhm, key, flags);
 }
 
-int grhm_rebuild(GRHM *grhm, uint8_t flags) {   
-  // printf("Rebuilding...\n");
+int grhm_rebuild(GRHM *grhm, uint8_t flags) {
+  qf_sync_counters(grhm);
+  printf("Before clear, nslots: %lu, nelts: %lu, noccupied_slots: %lu\n", grhm->metadata->nslots, grhm->metadata->nelts, grhm->metadata->noccupied_slots);
+  size_t ts_space = _get_ts_space(grhm);
+  int ret = _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
+  // _rebuild_no_insertion(grhm, 0, grhm->metadata->nslots, ts_space);
+  // int ret = _rebuild_2round(grhm);
+  qf_sync_counters(grhm);
+  printf("After clear, nslots: %lu, nelts: %lu, noccupied_slots: %lu\n", grhm->metadata->nslots, grhm->metadata->nelts, grhm->metadata->noccupied_slots);
+  reset_rebuild_cd(grhm);
+  // return ret;
+  return ret;
 }
 
 int grhm_lookup(const GRHM *grhm, uint64_t key, uint64_t *value, uint8_t flags) {
