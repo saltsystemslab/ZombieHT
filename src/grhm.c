@@ -90,7 +90,11 @@ int grhm_insert(GRHM *grhm, uint64_t key, uint64_t value, uint8_t flags) {
   int ret = qft_insert(grhm, key, value, flags);
   if (ret == QF_NO_SPACE) {
     ret = grhm_rebuild(grhm, flags);
-    if (ret < 0) return ret;
+    if (ret < 0) {
+      if (ret == QF_NO_SPACE)
+        fprintf(stderr, "Rebuild failed: %d\n", ret);
+      else return ret;
+    }
     ret = qft_insert(grhm, key, value, flags);
   }
   if (ret == QF_KEY_EXISTS) return ret;
@@ -99,7 +103,13 @@ int grhm_insert(GRHM *grhm, uint64_t key, uint64_t value, uint8_t flags) {
     abort();
   }
   if (--(grhm->metadata->rebuild_cd) == 0) {
-    return grhm_rebuild(grhm, flags);
+    int ret_rebuild = grhm_rebuild(grhm, flags);
+    if (ret_rebuild < 0) {
+      if (ret_rebuild == QF_NO_SPACE) {
+        fprintf(stderr, "Rebuild failed: %d\n", ret_rebuild);
+        return ret;
+      } else return ret_rebuild;
+    }
   }
   return ret;
 }
@@ -109,14 +119,14 @@ int grhm_remove(GRHM *grhm, uint64_t key, uint8_t flags) {
 }
 
 int grhm_rebuild(GRHM *grhm, uint8_t flags) {
-  qf_sync_counters(grhm);
-  printf("Before clear, nslots: %lu, nelts: %lu, noccupied_slots: %lu\n", grhm->metadata->nslots, grhm->metadata->nelts, grhm->metadata->noccupied_slots);
+  // qf_sync_counters(grhm);
+  // printf("Before clear, nslots: %lu, nelts: %lu, noccupied_slots: %lu\n", grhm->metadata->nslots, grhm->metadata->nelts, grhm->metadata->noccupied_slots);
   size_t ts_space = _get_ts_space(grhm);
   int ret = _rebuild_1round(grhm, 0, grhm->metadata->nslots, ts_space);
   // _rebuild_no_insertion(grhm, 0, grhm->metadata->nslots, ts_space);
   // int ret = _rebuild_2round(grhm);
-  qf_sync_counters(grhm);
-  printf("After clear, nslots: %lu, nelts: %lu, noccupied_slots: %lu\n", grhm->metadata->nslots, grhm->metadata->nelts, grhm->metadata->noccupied_slots);
+  // qf_sync_counters(grhm);
+  // printf("After clear, nslots: %lu, nelts: %lu, noccupied_slots: %lu\n", grhm->metadata->nslots, grhm->metadata->nelts, grhm->metadata->noccupied_slots);
   reset_rebuild_cd(grhm);
   // return ret;
   return ret;

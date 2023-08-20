@@ -14,6 +14,7 @@ static size_t _get_ts_space(GZHM *gzhm) {
   size_t ts_space = gzhm->metadata->tombstone_space;
   if (ts_space == 0) {
     // Default tombstone space: 2.5x, x=1/(1-load_factor). [Our paper]
+    qf_sync_counters(gzhm);
     size_t nslots = gzhm->metadata->nslots;
     size_t nelts = gzhm->metadata->nelts;
     ts_space = (2.5 * nslots) / (nslots - nelts);
@@ -36,7 +37,11 @@ static void _clear_tombstones_range(QF *qf, size_t from_run, size_t until_run) {
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run(qf, &push_start, &push_end);
     // fix block offset if necessary.
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+    _recalculate_block_offsets(qf, curr_run, push_end);
+#else
     _recalculate_block_offsets(qf, curr_run);
+#endif
     // find the next run
     curr_run = find_next_run(qf, ++curr_run);
     if (push_start < curr_run) {  // Reached the end of the cluster.

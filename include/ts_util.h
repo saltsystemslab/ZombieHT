@@ -5,6 +5,13 @@
 #define TS_UTIL_H
 
 #include "util.h"
+#include <stdio.h>
+
+
+static inline bool is_empty_ts(const QF *qf, uint64_t slot_index) {
+  // if (!is_tombstone(qf, slot_index)) return false;
+  return offset_lower_bound(qf, slot_index) == 0;
+}
 
 /* Find next tombstone/empty `available` in range [index, nslots)
  * Shift everything in range [index, available) by 1 to the big direction.
@@ -23,21 +30,11 @@ static inline int _insert_ts_at(QF *const qf, size_t index, size_t run) {
   shift_remainders(qf, index, available_slot_index);
   shift_runends_tombstones(qf, index, available_slot_index, 1);
   SET_T(qf, index);
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+  _recalculate_block_offsets(qf, index, available_slot_index);
+#else
   _recalculate_block_offsets(qf, run);
-  /* Increment the offset for each block between the hash bucket index
-   * and block of the empty slot  
-   */
-  // uint64_t i;
-  // for (i = index / QF_SLOTS_PER_BLOCK;
-  //       i <= available_slot_index / QF_SLOTS_PER_BLOCK; i++) {
-  //   uint8_t *block_offset = &(get_block(qf, i)->offset);
-  //   if (i > 0 && i * QF_SLOTS_PER_BLOCK + *block_offset -1 >= index &&
-  //     i * QF_SLOTS_PER_BLOCK + *block_offset <= available_slot_index) {
-  //     if (*block_offset < BITMASK(8 * sizeof(qf->blocks[0].offset)))
-  //       *block_offset += 1;
-  //     else abort();
-  //   }
-  // }
+#endif
   return available_slot_index - index;
 }
 
@@ -120,7 +117,11 @@ static void _clear_tombstones(QF *qf) {
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run(qf, &push_start, &push_end);
     // fix block offset if necessary.
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+    _recalculate_block_offsets(qf, curr_quotien, push_end);
+#else
     _recalculate_block_offsets(qf, curr_quotien);
+#endif
     // find the next run
     curr_quotien = find_next_run(qf, ++curr_quotien);
     if (push_start < curr_quotien) {  // Reached the end of the cluster.
@@ -153,7 +154,7 @@ static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t t
         push_end = push_start += 1;
         size_t n_skipped_runs = runends_cnt(grhm, push_start, ret);
         if (n_skipped_runs > 0) {
-          curr_run = occupieds_rank(grhm, curr_run, n_skipped_runs);
+          curr_run = occupieds_select(grhm, curr_run, n_skipped_runs);
           if (curr_run > pts) 
             curr_run = find_next_run(grhm, pts);
           push_end = push_start = run_start(grhm, curr_run);
@@ -164,7 +165,11 @@ static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t t
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run(grhm, &push_start, &push_end);
     // fix block offset if necessary.
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+    _recalculate_block_offsets(grhm, curr_run, push_end);
+#else
     _recalculate_block_offsets(grhm, curr_run);
+#endif
     // find the next run
     curr_run = find_next_run(grhm, ++curr_run);
     if (push_start < curr_run) {  // Reached the end of the cluster.
@@ -195,7 +200,11 @@ static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, s
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run_skip_ts(grhm, &push_start, &push_end, &n_skipped_ts);
     // fix block offset if necessary.
+#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
+    _recalculate_block_offsets(grhm, curr_run, push_end);
+#else
     _recalculate_block_offsets(grhm, curr_run);
+#endif
     // find the next run
     curr_run = find_next_run(grhm, ++curr_run);
     if (push_start < curr_run) {  // Reached the end of the cluster.
