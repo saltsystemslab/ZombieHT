@@ -445,9 +445,11 @@ static inline uint64_t _select64(uint64_t x, int k) {
   return place + kSelectInByte[((x >> place) & 0xFF) | (byteRank << 8)];
 }
 
-// Returns the position of the rank'th 1.  (rank = 0 returns the 1st 1)
-// Returns 64 if there are fewer than rank+1 1s.
-// Little-endian code, rank from right to left.
+/* Returns the position of the rank'th 1.  (rank = 0 returns the 1st 1)
+ * Rank %= 64.
+ * Returns 64 if there are fewer than rank+1 1s.
+ * Little-endian code, rank from right to left.
+ */
 static inline uint64_t bitselect(uint64_t val, int rank) {
 #ifdef __SSE4_2_
   uint64_t i = 1ULL << rank;
@@ -461,6 +463,7 @@ static inline uint64_t bitselect(uint64_t val, int rank) {
 // Returns the position of the rank'th 1 from right, ignoring the first
 // `ignore` bits.
 static inline uint64_t bitselectv(const uint64_t val, int ignore, int rank) {
+  if (rank >= 64) return 64;
   return bitselect(val & ~BITMASK(ignore % 64), rank);
 }
 
@@ -728,7 +731,7 @@ static inline int offset_lower_bound(const QF *qf, uint64_t slot_index) {
   const uint64_t slot_offset = slot_index % QF_SLOTS_PER_BLOCK;
   const uint64_t boffset = block_offset(qf, block_id);
   const uint64_t occupieds = b->occupieds[0] & BITMASK(slot_offset + 1);
-  const uint64_t runends = (b->runends[0] & BITMASK(slot_offset));
+  const uint64_t runends = b->runends[0] & BITMASK(slot_offset);
   assert(QF_SLOTS_PER_BLOCK == 64);
 #ifdef _BLOCKOFFSET_4_NUM_RUNENDS
   return popcnt(occupieds) + boffset - popcnt(runends);
