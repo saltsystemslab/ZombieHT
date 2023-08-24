@@ -17,6 +17,10 @@ ifdef REBUILD_DEAMORTIZED_GRAVEYARD
 		FEATURE_FLAGS:=$(FEATURE_FLAGS) -DREBUILD_DEAMORTIZED_GRAVEYARD
 endif
 
+ifdef BLOCKOFFSET_4_NUM_RUNENDS
+		FEATURE_FLAGS:=$(FEATURE_FLAGS) -D_BLOCKOFFSET_4_NUM_RUNENDS
+endif
+
 
 ifdef D
 	DEBUG=-g -DDEBUG=1
@@ -52,8 +56,7 @@ CC = g++ -std=c++11
 CXX = g++ -std=c++11
 LD= g++ -std=c++11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) $(FEATURE_FLAGS) -m64 -I. -Iinclude -Itests -D_BLOCKOFFSET_4_NUM_RUNENDS
-
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) $(FEATURE_FLAGS) -m64 -I. -Iinclude -Itests 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
 
 #

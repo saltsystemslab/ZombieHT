@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -rf ./bench_run/*
+
 make clean hm_churn
 ./hm_churn -k 30 -q 24 -c 20 -l 1000 -d ./bench_run/rhm/
 
