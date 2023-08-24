@@ -163,8 +163,18 @@ int qft_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags) {
 }
 
 void qft_rebuild(QF *hm, uint8_t flags) {
+#ifdef REBUILD_BY_CLEAR
     _clear_tombstones(hm);
     reset_rebuild_cd(hm);
+#elif REBUILD_DEAMORTIZED_GRAVEYARD
+		abort();
+#elif REBUILD_AMORTIZED_GRAVEYARD
+		size_t ts_space = _get_ts_space(hm);
+		int ret = _rebuild_1round(hm, 0, hm->metadata->nslots, ts_space);
+		reset_rebuild_cd(hm);
+#else
+		abort();
+#endif
 }
 
 #endif

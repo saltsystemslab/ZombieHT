@@ -195,10 +195,35 @@ static void _clear_tombstones(QF *qf) {
   }
 }
 
+#if 0
+/* Insert primitive tombstones. */
+static int _insert_all_pts(GRHM *grhm) {
+  // Find the space between primitive tombstones.
+  size_t ts_space = _get_ts_space(grhm);
+  size_t pts = ts_space - 1;
+  while (pts < grhm->metadata->nslots) {
+    // size_t runstart = run_start(grhm, pts);
+    // int ret = _insert_ts_at(grhm, runstart);
+    int ret = _insert_pts(grhm, pts);
+    if (ret < 0) abort();
+    pts += ts_space;
+  }
+  return 0;
+}
+
+/* Rebuild with 2 rounds. */
+static int _rebuild_2round(GRHM *grhm) {
+  _clear_tombstones(grhm);
+  return _insert_all_pts(grhm);
+  return 0;
+}
+#endif
+
 
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
+// TODO: Maybe rename to amortized_redistribute_tombstones?
 static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   size_t curr_run = find_next_run(grhm, from_run);
@@ -278,18 +303,26 @@ static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, s
   }
 }
 
-static void reset_rebuild_cd(HM *trhm) {
-  if (trhm->metadata->nrebuilds != 0)
-    trhm->metadata->rebuild_cd = trhm->metadata->nrebuilds;
+static void reset_rebuild_cd(HM *hm) {
+  if (hm->metadata->nrebuilds != 0)
+    hm->metadata->rebuild_cd = hm->metadata->nrebuilds;
   else {
+    qf_sync_counters(hm);
+    size_t nslots = hm->metadata->nslots;
+    size_t nelts = hm->metadata->nelts;
+#ifdef REBUILD_BY_CLEAR
     // n/log_b^p(x), x=1/(1-load_factor) [Graveyard paper Section 3.3]
     // TODO: Find the best rebuild_cd, try n/log_b^p(x) for p >= 1 and b >=2.
-    qf_sync_counters(trhm);
-    size_t nslots = trhm->metadata->nslots;
-    size_t nelts = trhm->metadata->nelts;
     double x = (double)nslots / (double)(nslots - nelts);
-    trhm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
-    fprintf(stdout, "Rebuild cd: %u\n", trhm->metadata->rebuild_cd);
+    hm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
+    fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+#elif REBUILD_AMORTIZED_GRAVEYARD
+    hm->metadata->rebuild_cd = (nslots - nelts) / 4;
+    fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+#else
+		abort();
+#endif
+
   }
 }
 
@@ -318,6 +351,19 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
     *index += 1;
   } while (*index < *run_end_index);
   return 0;
+}
+
+// Find the space between primitive tombstones.
+static size_t _get_ts_space(HM *hm) {
+  size_t ts_space = hm->metadata->tombstone_space;
+  if (ts_space == 0) {
+    // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
+    qf_sync_counters(hm);
+    size_t nslots = hm->metadata->nslots;
+    size_t nelts = hm->metadata->nelts;
+    ts_space = (2 * nslots) / (nslots - nelts);
+  }
+  return ts_space;
 }
 
 #endif
