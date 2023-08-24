@@ -319,6 +319,8 @@ static void reset_rebuild_cd(HM *hm) {
 #elif REBUILD_AMORTIZED_GRAVEYARD
     hm->metadata->rebuild_cd = (nslots - nelts) / 4;
     fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+#elif REBUILD_DEAMORTIZED_GRAVEYARD 
+		// Do Nothing.
 #else
 		abort();
 #endif
@@ -361,7 +363,11 @@ static size_t _get_ts_space(HM *hm) {
     qf_sync_counters(hm);
     size_t nslots = hm->metadata->nslots;
     size_t nelts = hm->metadata->nelts;
+#ifdef REBUILD_DEAMORTIZED_GRAVEYARD
     ts_space = (2 * nslots) / (nslots - nelts);
+#elif REBUILD_AMORTIZED_GRAVEYARD
+    ts_space = (2.5 * nslots) / (nslots - nelts);
+#endif
   }
   return ts_space;
 }

@@ -7,7 +7,8 @@ dir = "bench_run"
 datastructs = [
     "rhm",
     "trhm",
-    "grhm"
+    "grhm",
+    "gzhm"
 ]
 
 # WARNING: This is hardcoded - be careful!
