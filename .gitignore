@@ -19,3 +19,5 @@ test
 test_runner
 test_pc
 test_threadsafe
+*.swp
+*.png

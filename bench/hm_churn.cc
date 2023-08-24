@@ -66,6 +66,7 @@ void usage(char *name) {
   printf(
       "%s [OPTIONS]\n"
       "Options are:\n"
+      "  -d dir 							 [ Output Directory. Default bench_run ]\n"
       "  -k keybits            [ Size of key in bits. ]\n"
       "  -q quotient_bits      [ Size of quotient in bits. ]\n"
       "  -v value_keybits      [ Size of value in bits. ]\n"
@@ -86,8 +87,11 @@ void parseArgs(int argc, char **argv) {
   int opt;
   char *term;
 
-  while ((opt = getopt(argc, argv, "k:q:v:i:c:l:f:p:r:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:l:f:p:r:s:")) != -1) {
     switch (opt) {
+		case 'd':
+				dir = std::string(optarg);
+				break;
     case 'k':
       key_bits = strtol(optarg, &term, 10);
       if (*term) {

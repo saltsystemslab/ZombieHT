@@ -7,11 +7,11 @@ dir = "bench_run"
 datastructs = [
     "rhm",
     "trhm",
-    "grhm",
-    "gzhm"
 ]
 
-f = open("%s/test_params.txt" % (dir), "r")
+# WARNING: This is hardcoded - be careful!
+f = open("%s/rhm/test_params.txt" % (dir), "r")
+
 lines = f.readlines()
 key_bits = int(lines[0])
 quotient_bits = int(lines[1])
@@ -26,7 +26,7 @@ for l in lines[6:]:
 
 plt.figure(figsize=(20,6))
 for d in datastructs:
-    df = pd.read_csv('./%s/%s-load.txt' % (dir, d), delim_whitespace=True)
+    df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
     plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
     plt.xlabel("percent of keys inserted" )
     plt.ylabel("throughput")
@@ -38,7 +38,7 @@ plt.close()
 
 plt.figure(figsize=(20,12))
 for d in datastructs:
-    df = pd.read_csv('./%s/%s-churn.txt' % (dir, d), delim_whitespace=True)
+    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
     plt.plot(df["x_0"], df["y_0"], label=d)
     plt.xlabel("percent of churn test" )
     plt.ylabel("throughput")
@@ -51,7 +51,7 @@ plt.close()
 
 plt.figure(figsize=(20,12))
 for d in datastructs:
-    df = pd.read_csv('./%s/%s-churn.txt' % (dir, d), delim_whitespace=True)
+    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
     df = df[df["x_0"].ge(95.0)]
     plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
     plt.xlabel("percent of churn test" )
