@@ -1,5 +1,11 @@
 TARGETS=test test_threadsafe test_pc bm hm_churn test_runner
 
+ifdef T
+  FEATURE_FLAGS= -DQF_TOMBSTONE
+else
+  FEATURE_FLAGS= 
+endif
+
 ifdef D
 	DEBUG=-g -DDEBUG=1
 	OPT=
@@ -34,7 +40,7 @@ CC = g++ -std=c++11
 CXX = g++ -std=c++11
 LD= g++ -std=c++11
 
-CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) -m64 -I. -Iinclude -Itests -D_BLOCKOFFSET_4_NUM_RUNENDS
+CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) $(FEATURE_FLAGS) -m64 -I. -Iinclude -Itests -D_BLOCKOFFSET_4_NUM_RUNENDS
 
 LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
 

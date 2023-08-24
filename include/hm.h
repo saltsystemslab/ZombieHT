@@ -30,6 +30,8 @@ int hm_remove(HM *hm, uint64_t key, uint8_t flags);
 
 int hm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
 
+int hm_rebuild(const QF *qf, uint8_t flags);
+
 #ifdef __cplusplus
 }
 #endif
