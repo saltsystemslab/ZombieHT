@@ -22,7 +22,7 @@ bool hm_malloc(HM *hm, uint64_t nslots, uint64_t key_bits,
 
   int ret = qf_malloc(hm, nslots, key_bits, value_bits, hash, seed);
 #ifdef QF_TOMBSTONE
-//  reset_rebuild_cd(hm);
+  reset_rebuild_cd(hm);
 #endif
   return ret;
 }
