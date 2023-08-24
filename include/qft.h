@@ -113,12 +113,6 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     qf_unlock(qf, hash_bucket_index, /*small*/ true);
   }
 
-#ifdef REBUILD_DEAMORTIZED_GRAVEYARD
-  qf_sync_counters(qf);
-  if (ret_distance >= 0) {
-    _deamortized_rebuild(qf);
-  }
-#endif
 
   return ret_distance;
 }

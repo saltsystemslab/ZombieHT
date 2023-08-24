@@ -304,6 +304,9 @@ static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, s
 }
 
 static void reset_rebuild_cd(HM *hm) {
+#ifdef REBUILD_DEAMORTIZED_GRAVEYARD
+  return; // Do Nothing.
+#else
   if (hm->metadata->nrebuilds != 0)
     hm->metadata->rebuild_cd = hm->metadata->nrebuilds;
   else {
@@ -319,13 +322,11 @@ static void reset_rebuild_cd(HM *hm) {
 #elif REBUILD_AMORTIZED_GRAVEYARD
     hm->metadata->rebuild_cd = (nslots - nelts) / 4;
     fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
-#elif REBUILD_DEAMORTIZED_GRAVEYARD 
-		// Do Nothing.
 #else
 		abort();
 #endif
-
   }
+#endif
 }
 
 static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
@@ -364,9 +365,9 @@ static size_t _get_ts_space(HM *hm) {
     size_t nslots = hm->metadata->nslots;
     size_t nelts = hm->metadata->nelts;
 #ifdef REBUILD_DEAMORTIZED_GRAVEYARD
-    ts_space = (2 * nslots) / (nslots - nelts);
-#elif REBUILD_AMORTIZED_GRAVEYARD
     ts_space = (2.5 * nslots) / (nslots - nelts);
+#elif REBUILD_AMORTIZED_GRAVEYARD
+    ts_space = (2 * nslots) / (nslots - nelts);
 #endif
   }
   return ts_space;
