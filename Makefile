@@ -63,61 +63,30 @@ bm:									$(OBJDIR)/bm.o $(OBJDIR)/gqf.o \
 										$(OBJDIR)/partitioned_counter.o
 
 hm_churn:						$(OBJDIR)/hm_churn.o  $(OBJDIR)/gqf.o \
-										$(OBJDIR)/grhm.o \
-										$(OBJDIR)/gzhm.o \
+										$(OBJDIR)/hm.o \
 										$(OBJDIR)/hashutil.o \
 										$(OBJDIR)/partitioned_counter.o
 
-test_runner:				$(OBJDIR)/test_runner.o $(OBJDIR)/gqf.o \
-										$(OBJDIR)/grhm.o \
-										$(OBJDIR)/gzhm.o \
+test_runner:				$(OBJDIR)/test_runner.o $(OBJDIR)/hm.o \
+										$(OBJDIR)/gqf.o \
 										$(OBJDIR)/hashutil.o \
 										$(OBJDIR)/partitioned_counter.o
 
 # dependencies between .o files and .h files
 
-$(OBJDIR)/test.o: 						$(LOC_INCLUDE)/gqf.h \
-															$(LOC_INCLUDE)/hashutil.h \
-															$(LOC_INCLUDE)/partitioned_counter.h
+$(OBJDIR)/hm_churn.o:					$(LOC_TEST)/hm_wrapper.h
 
-$(OBJDIR)/test_threadsafe.o: 	$(LOC_INCLUDE)/gqf.h \
-															$(LOC_INCLUDE)/hashutil.h \
-															$(LOC_INCLUDE)/partitioned_counter.h
-
-$(OBJDIR)/bm.o:								$(LOC_TEST)/gqf_wrapper.h \
-															$(LOC_INCLUDE)/partitioned_counter.h
-
-$(OBJDIR)/hm_churn.o:					$(LOC_TEST)/rhm_wrapper.h \
-															$(LOC_TEST)/trhm_wrapper.h \
-															$(LOC_TEST)/grhm_wrapper.h \
-															$(LOC_TEST)/gzhm_wrapper.h
-
-$(OBJDIR)/test_runner.o:			$(LOC_TEST)/grhm_wrapper.h \
-															$(LOC_TEST)/rhm_wrapper.h \
-															$(LOC_TEST)/trhm_wrapper.h \
-															$(LOC_TEST)/gzhm_wrapper.h
+$(OBJDIR)/test_runner.o:			$(LOC_TEST)/hm_wrapper.h
 
 
 # dependencies between .o files and .cc (or .c) files
 
 $(OBJDIR)/gqf.o:							$(LOC_SRC)/gqf.c \
 															$(LOC_INCLUDE)/gqf.h \
-															$(LOC_INCLUDE)/rhm.h \
-															$(LOC_INCLUDE)/trhm.h \
 															$(LOC_INCLUDE)/hashutil.h \
 															$(LOC_INCLUDE)/util.h \
 															$(LOC_INCLUDE)/ts_util.h
-$(OBJDIR)/grhm.o:							$(LOC_SRC)/grhm.c \
-															$(LOC_INCLUDE)/rhm.h \
-															$(LOC_INCLUDE)/trhm.h \
-															$(LOC_INCLUDE)/util.h \
-															$(LOC_INCLUDE)/ts_util.h
-$(OBJDIR)/gzhm.o:							$(LOC_SRC)/gzhm.c \
-															$(LOC_INCLUDE)/rhm.h \
-															$(LOC_INCLUDE)/trhm.h \
-															$(LOC_INCLUDE)/gzhm.h \
-															$(LOC_INCLUDE)/util.h \
-															$(LOC_INCLUDE)/ts_util.h
+
 $(OBJDIR)/hashutil.o:					$(LOC_SRC)/hashutil.c $(LOC_INCLUDE)/hashutil.h
 $(OBJDIR)/partitioned_counter.o:	$(LOC_INCLUDE)/partitioned_counter.h
 

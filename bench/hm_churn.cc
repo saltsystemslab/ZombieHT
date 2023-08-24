@@ -28,6 +28,7 @@ using namespace std;
 using namespace std::chrono;
 
 #include "hm_op.h"
+#include "hm_wrapper.h"
 
 #define MAX_VALUE(nbits) ((1ULL << (nbits)) - 1)
 #define BITMASK(nbits) ((nbits) == 64 ? 0xffffffffffffffff : MAX_VALUE(nbits))
@@ -40,7 +41,6 @@ int nchurns = 10;
 int nchurn_ops = 500;
 int npoints = 50;
 int should_record = 0;
-std::string datastruct = "all";
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
 uint64_t num_slots = 0;
@@ -73,7 +73,6 @@ void usage(char *name) {
       "  -c churn cycles       [ Number of churn cycles.  Default 10 ]\n"
       "  -l churn length       [ Number of insert, delete operations per churn "
       "cycle ]\n"
-      "  -d datastruct         [ Default all. rhm, trhm, gzhm, grhm. ]\n"
       "  -r record             [ Whether to record. If 1 will record to -f. Use test_runner to replay or check test case.]\n"
       "  -f record/replay file [ File to record to. Default test_case.txt ]"
       "  -p npoints            [ number of points on the graph.  Default 20 "
@@ -87,7 +86,7 @@ void parseArgs(int argc, char **argv) {
   int opt;
   char *term;
 
-  while ((opt = getopt(argc, argv, "k:q:v:i:c:l:d:f:p:r:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "k:q:v:i:c:l:f:p:r:s:")) != -1) {
     switch (opt) {
     case 'k':
       key_bits = strtol(optarg, &term, 10);
@@ -161,9 +160,6 @@ void parseArgs(int argc, char **argv) {
         exit(1);
       }
       break;
-    case 'd':
-      datastruct = std::string(optarg);
-      break;
     case 'f':
       record_file = std::string(optarg);
       break;
@@ -235,8 +231,8 @@ std::vector<hm_op> generate_ops() {
   return ops;
 }
 
-void run_ops(std::string datastruct_name, std::string phase_name,
-    hashmap hashmap_ds, std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
+void run_ops(std::string phase_name, 
+				std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
              std::string output_file) {
   printf("Beginning %s\n", phase_name.c_str());
   time_point<high_resolution_clock> ts[2 * npoints];
@@ -278,13 +274,13 @@ void run_ops(std::string datastruct_name, std::string phase_name,
       num_op++;
       switch (op.op) {
       case INSERT:
-        hashmap_ds.insert(op.key, op.value);
+        g_insert(op.key, op.value);
         break;
       case DELETE:
-        hashmap_ds.remove(op.key);
+        g_remove(op.key);
         break;
       case LOOKUP:
-        hashmap_ds.lookup(op.key, &lookup_value);
+        g_lookup(op.key, &lookup_value);
         break;
       }
     }
@@ -296,9 +292,9 @@ void run_ops(std::string datastruct_name, std::string phase_name,
     op_cnt[cur_op] += num_op;
   }
   write_thrput_to_file(ts, npoints, output_file, nops);
-  printf("%s insert throughput (ops/microsec): %f\n", datastruct_name.c_str(), 0.001 * op_durtn[INSERT] / op_cnt[INSERT]);
-  printf("%s delete throughput (ops/microsec): %f\n", datastruct_name.c_str(), 0.001 * op_durtn[DELETE] / op_cnt[DELETE]);
-  printf("%s lookup throughput (ops/microsec): %f\n", datastruct_name.c_str(), 0.001 * op_durtn[LOOKUP] / op_cnt[LOOKUP]);
+  printf("insert throughput (ops/microsec): %f\n", 0.001 * op_durtn[INSERT] / op_cnt[INSERT]);
+  printf("delete throughput (ops/microsec): %f\n", 0.001 * op_durtn[DELETE] / op_cnt[DELETE]);
+  printf("lookup throughput (ops/microsec): %f\n", 0.001 * op_durtn[LOOKUP] / op_cnt[LOOKUP]);
 }
 
 void setup(std::string dir) {
@@ -306,17 +302,17 @@ void setup(std::string dir) {
   system(mkdir.c_str());
 }
 
-void run_churn(std::string datastruct_name, hashmap hashmap_ds, std::vector<hm_op> &ops) {
+void run_churn(std::vector<hm_op> &ops) {
   std::string load_op = "load.txt";
   std::string churn_op = "churn.txt";
-  std::string filename_load = dir + datastruct_name + "-" + load_op;
-  std::string filename_churn = dir + datastruct_name + "-" + churn_op;
-  hashmap_ds.init(num_slots, key_bits, value_bits);
+  std::string filename_load = dir + load_op;
+  std::string filename_churn = dir +  churn_op;
+  g_init(num_slots, key_bits, value_bits);
   // LOAD PHASE.
-  run_ops(datastruct_name, "load phase", hashmap_ds, ops, 0, num_initial_load_keys, npoints, filename_load);
+  run_ops("load phase", ops, 0, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
-  run_ops(datastruct_name, "churn phase", hashmap_ds, ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
-  hashmap_ds.destroy();
+  run_ops("churn phase", ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
+  g_destroy();
 }
 
 void write_test_params(std::vector<hm_op> ops) {
@@ -347,10 +343,7 @@ int main(int argc, char **argv) {
   }
   std::string outputfile = "thrput";
   std::string replay_op = "replay.txt\0";
-
   setup(dir);
-
-  printf("DS: %s\n", datastruct.c_str());
 
   std::vector<hm_op> ops;
   ops = generate_ops();
@@ -358,26 +351,6 @@ int main(int argc, char **argv) {
   if (should_record) {
     write_ops(record_file, key_bits, quotient_bits, value_bits, ops);
   }
-
-  if (datastruct == "all") {
-    run_churn("rhm", rhm, ops);
-    run_churn("trhm", trhm, ops);
-    run_churn("grhm", grhm, ops);
-    run_churn("gzhm", gzhm, ops);
-  } else {
-  if (datastruct == "rhm") {
-    run_churn("rhm", rhm, ops);
-  } else if (datastruct == "trhm") {
-    run_churn("trhm", trhm, ops);
-  } else if (datastruct == "grhm") {
-    run_churn("grhm", grhm, ops);
-  } else if (datastruct == "gzhm") {
-    run_churn("gzhm", gzhm, ops);
-  } else {
-    fprintf(stderr, "Unknown datastruct.\n");
-    usage(argv[0]);
-    exit(1);
-  }
-  }
+	run_churn(ops);
   return 0;
 }

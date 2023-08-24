@@ -6,11 +6,8 @@
 #include <unistd.h>
 #include <vector>
 #include <cassert>
-#include "rhm_wrapper.h"
-#include "trhm_wrapper.h"
-#include "grhm_wrapper.h"
-#include "gzhm_wrapper.h"
 #include "hm_op.h"
+#include "hm_wrapper.h"
 
 using namespace std;
 
@@ -108,17 +105,15 @@ int value_bits = 8;
 int initial_load_factor = 50;
 int num_ops = 200;
 bool should_replay = false;
-std::string datastruct = "rhm";
 std::string replay_file = "test_case.txt";
 std::map<uint64_t, uint64_t> current_state;
-hashmap hm = rhm;
 static int verbose_flag = 0;  // 1 for verbose, 0 for brief
 
-void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, hashmap actual, bool check_equality = false) {
+void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, bool check_equality = false) {
   uint64_t value;
   for (uint64_t k = 0; k <= (1UL<<key_bits)-1; k++) {
     int key_exists = expected.find(k) != expected.end();
-    int ret = actual.lookup(k, &value);
+    int ret = g_lookup(k, &value);
     if (key_exists) {
       uint64_t expected_value = expected[k];
       if (ret < 0) {
@@ -138,7 +133,6 @@ void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, ha
 void usage(char *name) {
   printf("%s [OPTIONS]\n"
          "Options are:\n"
-         "  -d datastruct           [ Default rhm. rhm, trhm ]\n"
          "  -k keysize bits         [ log_2 of map capacity.  Default 16 ]\n"
          "  -q quotientbits         [ Default 8. Max 64.]\n"
          "  -v value bits           [ Default 8. Max 64.]\n"
@@ -153,11 +147,8 @@ void parseArgs(int argc, char **argv) {
   int opt;
   char *term;
 
-  while ((opt = getopt(argc, argv, "d:k:q:v:m:l:f:r:")) != -1) {
+  while ((opt = getopt(argc, argv, "k:q:v:m:l:f:r:")) != -1) {
     switch (opt) {
-    case 'd':
-      datastruct = std::string(optarg);
-      break;
     case 'k':
       key_bits = strtol(optarg, &term, 10);
       if (*term) {
@@ -210,26 +201,12 @@ void parseArgs(int argc, char **argv) {
         replay_file = std::string(optarg);
         break;
     }
-    if (datastruct == "rhm") {
-      hm = rhm;
-    } else if (datastruct == "trhm") {
-      hm = trhm;
-    } else if (datastruct == "grhm") {
-      hm = grhm;
-    } else if (datastruct == "gzhm") {
-      hm = gzhm;
-    } else {
-      fprintf(stderr, "Argument to -d must one of 'rhm', 'trhm', 'grhm', 'gzhm'. \n");
-      usage(argv[0]);
-      exit(1);
-    }
     // TODO(chesetti): Add assertions that flags are sane.
   }
 }
 
 int main(int argc, char **argv) {
   parseArgs(argc, argv);
-  cout << "Algorithm: " << datastruct << std::endl;
   cout << "Key Bits: " << key_bits << std::endl;
   cout << "Quotient Bits: " << quotient_bits << std::endl;
   cout << "Value Bits: " << value_bits << std::endl;
@@ -248,7 +225,7 @@ int main(int argc, char **argv) {
   write_ops(replay_file, key_bits, quotient_bits, value_bits, ops);
 
   std::map<uint64_t, uint64_t> map;
-  hm.init((1ULL<<quotient_bits), key_bits, value_bits);
+  g_init((1ULL<<quotient_bits), key_bits, value_bits);
   uint64_t key, value;
   int ret, key_exists;
   for (int i=0; i < ops.size(); i++) {
@@ -260,32 +237,32 @@ int main(int argc, char **argv) {
     switch(op.op) {
       case INSERT:
         map[key] = value;
-        ret = hm.insert(key, value);
+        ret = g_insert(key, value);
         if (ret < 0 && ret != QF_KEY_EXISTS) {
           fprintf(stderr, "Insert failed. Return %d for key %lx.\n", ret, key);
-          fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+          fprintf(stderr, "Replay this testcase with ./test_case -r 1 -f %s\n", replay_file.c_str());
           abort();
         }
-        check_universe(key_bits, map, hm);
+        check_universe(key_bits, map);
         break;
       case DELETE:
         key_exists = map.erase(key);
         if (verbose_flag)
           printf("key_exists: %d\n", key_exists);
-        ret = hm.remove(key);
+        ret = g_remove(key);
         if (key_exists && ret < 0) {
           fprintf(stderr, "Delete failed. Return %d for existing key %lx.\n", ret, key);
-          fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+          fprintf(stderr, "Replay this testcase with ./test_case -r 1 -f %s\n", replay_file.c_str());
           abort();
         }
-        check_universe(key_bits, map, hm);
+        check_universe(key_bits, map);
         break;
       case LOOKUP:
-        ret = hm.lookup(key, &value);
+        ret = g_lookup(key, &value);
         if (map.find(key) != map.end()) {
           if (ret < 0)  {
             fprintf(stderr, "Find failed. Return %d for existing key %lx.\n", ret, key);
-            fprintf(stderr, "Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+						fprintf(stderr, "Replay this testcase with ./test_case -r 1 -f %s\n", replay_file.c_str());
             abort();
           }
         }
@@ -293,5 +270,5 @@ int main(int argc, char **argv) {
     }
   }
   printf("Test success.\n");
-  hm.destroy();
+  g_destroy();
 }
