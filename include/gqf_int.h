@@ -63,7 +63,6 @@ extern "C" {
 #endif
 	} qfblock;
 
-	struct __attribute__ ((__packed__)) qfblock;
 	typedef struct qfblock qfblock;
 
 	// The below struct is used to instrument the code.

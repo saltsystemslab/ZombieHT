@@ -318,10 +318,10 @@ static void reset_rebuild_cd(HM *hm) {
     // TODO: Find the best rebuild_cd, try n/log_b^p(x) for p >= 1 and b >=2.
     double x = (double)nslots / (double)(nslots - nelts);
     hm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
-    fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+    // fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
 #elif REBUILD_AMORTIZED_GRAVEYARD
     hm->metadata->rebuild_cd = (nslots - nelts) / 4;
-    fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+    // fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
 #else
 		abort();
 #endif

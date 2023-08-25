@@ -25,7 +25,7 @@ void load_ops(std::string replay_filepath, int *key_bits, int *quotient_bits,
   ifs >> (*key_bits) >> (*quotient_bits) >> (*value_bits);
   uint64_t num_keys;
   ifs >> num_keys;
-  for (int i = 0; i < num_keys; i++) {
+  for (size_t i = 0; i < num_keys; i++) {
     hm_op op;
     ifs >> op.op >> op.key >> op.value;
     ops.push_back(op);

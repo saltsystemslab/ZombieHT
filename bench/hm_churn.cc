@@ -217,13 +217,13 @@ std::vector<hm_op> generate_ops() {
     RAND_bytes((unsigned char *)new_values, nchurn_ops * sizeof(uint64_t));
     RAND_bytes((unsigned char *)keys_indexes_to_delete, nchurn_ops * sizeof(uint64_t));
 
-    for (uint64_t churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+    for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
       ops.push_back(hm_op{DELETE, key, value});
     }
-    for (uint64_t churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+    for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
       uint64_t key = (new_keys[churn_op] & BITMASK(key_bits));
       uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
       ops.push_back(hm_op{INSERT, key, value});
@@ -236,7 +236,7 @@ std::vector<hm_op> generate_ops() {
 }
 
 void run_ops(std::string phase_name, 
-				std::vector<hm_op> &ops, uint64_t start, uint64_t end, int npoints,
+				std::vector<hm_op> &ops, uint64_t start, uint64_t end, size_t npoints,
              std::string output_file) {
   printf("Beginning %s\n", phase_name.c_str());
   time_point<high_resolution_clock> ts[2 * npoints];
@@ -256,10 +256,10 @@ void run_ops(std::string phase_name,
 
   uint64_t nops = (end - start);
   uint64_t i, j, lookup_value = 0;
-  for (uint64_t exp = 0; exp < 2 * npoints; exp += 2) {
+  for (size_t exp = 0; exp < 2 * npoints; exp += 2) {
     i = (exp / 2) * (nops / npoints) + start;
     j = ((exp / 2) + 1) * (nops / npoints) + start;
-    fprintf(LOG, "Round: %d OPS %s [%lu %lu]\n", exp, output_file.c_str(), i, j);
+    fprintf(LOG, "Round: %lu OPS %s [%lu %lu]\n", exp, output_file.c_str(), i, j);
 
     // TODO: Record time for this batch.
     ts[exp] = high_resolution_clock::now();
@@ -303,7 +303,7 @@ void run_ops(std::string phase_name,
 
 void setup(std::string dir) {
   std::string mkdir = "mkdir -p " + dir;
-  system(mkdir.c_str());
+  assert(system(mkdir.c_str()) == 0);
 }
 
 void run_churn(std::vector<hm_op> &ops) {

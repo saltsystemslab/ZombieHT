@@ -1176,7 +1176,7 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
     }
     block_id++;
     if (next_offset >= 255) {
-      printf("block: %u, offset: %u\n", block_id, next_offset);
+      printf("block: %lu, offset: %u\n", block_id, next_offset);
       get_block(qf, block_id)->offset = 255;
       continue;
     }
