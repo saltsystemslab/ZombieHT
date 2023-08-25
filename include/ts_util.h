@@ -5,7 +5,68 @@
 #define TS_UTIL_H
 
 #include "util.h"
+#include <math.h>
 #include <stdio.h>
+
+#ifdef QF_TOMBSTONE
+
+static inline int is_tombstone(const QF *qf, uint64_t index) {
+  return (METADATA_WORD(qf, tombstones, index) >>
+          ((index % QF_SLOTS_PER_BLOCK) % 64)) &
+         1ULL;
+}
+
+/* Find the first tombstone in [from, xnslots), it can be empty or not empty. */
+static inline size_t find_next_tombstone(QF *qf, size_t from) {
+  size_t block_index = from / QF_SLOTS_PER_BLOCK;
+  const size_t slot_offset = from % QF_SLOTS_PER_BLOCK;
+  size_t tomb_offset =
+      bitselectv(get_block(qf, block_index)->tombstones[0], slot_offset, 0);
+  while (tomb_offset == 64) { // No tombstone in the rest of this block.
+    block_index++;
+    tomb_offset = bitselect(get_block(qf, block_index)->tombstones[0], 0);
+  }
+  return block_index * QF_SLOTS_PER_BLOCK + tomb_offset;
+}
+
+/* Shift metadata runends and tombstones in range [first, last) to the big
+ * direction by distance.
+ * `last` to `last+distance-1` will be replaced. Fill with 0s in the small size.
+ */
+static inline void shift_runends_tombstones(QF *qf, int64_t first,
+                                            uint64_t last, uint64_t distance) {
+  assert(last < qf->metadata->xnslots);
+  assert(distance < 64);
+  uint64_t first_word = first / 64;
+  uint64_t bstart = first % 64;
+  uint64_t last_word = (last + distance - 1) / 64;
+  uint64_t bend = (last + distance - 1) % 64 + 1;
+
+  if (last_word != first_word) {
+    METADATA_WORD(qf, runends, 64 * last_word) = shift_into_b(
+        METADATA_WORD(qf, runends, 64 * (last_word - 1)),
+        METADATA_WORD(qf, runends, 64 * last_word), 0, bend, distance);
+    METADATA_WORD(qf, tombstones, 64 * last_word) = shift_into_b(
+        METADATA_WORD(qf, tombstones, 64 * (last_word - 1)),
+        METADATA_WORD(qf, tombstones, 64 * last_word), 0, bend, distance);
+    bend = 64;
+    last_word--;
+    while (last_word != first_word) {
+      METADATA_WORD(qf, runends, 64 * last_word) = shift_into_b(
+          METADATA_WORD(qf, runends, 64 * (last_word - 1)),
+          METADATA_WORD(qf, runends, 64 * last_word), 0, bend, distance);
+      METADATA_WORD(qf, tombstones, 64 * last_word) = shift_into_b(
+          METADATA_WORD(qf, tombstones, 64 * (last_word - 1)),
+          METADATA_WORD(qf, tombstones, 64 * last_word), 0, bend, distance);
+      last_word--;
+    }
+  }
+  METADATA_WORD(qf, runends, 64 * last_word) = shift_into_b(
+      0, METADATA_WORD(qf, runends, 64 * last_word), bstart, bend, distance);
+  METADATA_WORD(qf, tombstones, 64 * last_word) = shift_into_b(
+      0, METADATA_WORD(qf, tombstones, 64 * last_word), bstart, bend, distance);
+}
+
 
 
 static inline bool is_empty_ts(const QF *qf, uint64_t slot_index) {
@@ -134,10 +195,35 @@ static void _clear_tombstones(QF *qf) {
   }
 }
 
+#if 0
+/* Insert primitive tombstones. */
+static int _insert_all_pts(GRHM *grhm) {
+  // Find the space between primitive tombstones.
+  size_t ts_space = _get_ts_space(grhm);
+  size_t pts = ts_space - 1;
+  while (pts < grhm->metadata->nslots) {
+    // size_t runstart = run_start(grhm, pts);
+    // int ret = _insert_ts_at(grhm, runstart);
+    int ret = _insert_pts(grhm, pts);
+    if (ret < 0) abort();
+    pts += ts_space;
+  }
+  return 0;
+}
+
+/* Rebuild with 2 rounds. */
+static int _rebuild_2round(GRHM *grhm) {
+  _clear_tombstones(grhm);
+  return _insert_all_pts(grhm);
+  return 0;
+}
+#endif
+
 
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
+// TODO: Maybe rename to amortized_redistribute_tombstones?
 static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
   size_t pts = (from_run / ts_space + 1) * ts_space - 1;
   size_t curr_run = find_next_run(grhm, from_run);
@@ -216,5 +302,77 @@ static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, s
     }
   }
 }
+
+static void reset_rebuild_cd(HM *hm) {
+#ifdef REBUILD_DEAMORTIZED_GRAVEYARD
+  return; // Do Nothing.
+#else
+  if (hm->metadata->nrebuilds != 0)
+    hm->metadata->rebuild_cd = hm->metadata->nrebuilds;
+  else {
+    qf_sync_counters(hm);
+    size_t nslots = hm->metadata->nslots;
+    size_t nelts = hm->metadata->nelts;
+#ifdef REBUILD_BY_CLEAR
+    // n/log_b^p(x), x=1/(1-load_factor) [Graveyard paper Section 3.3]
+    // TODO: Find the best rebuild_cd, try n/log_b^p(x) for p >= 1 and b >=2.
+    double x = (double)nslots / (double)(nslots - nelts);
+    hm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
+    fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+#elif REBUILD_AMORTIZED_GRAVEYARD
+    hm->metadata->rebuild_cd = (nslots - nelts) / 4;
+    fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+#else
+		abort();
+#endif
+  }
+#endif
+}
+
+static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
+                uint64_t *const index, uint64_t *const run_start_index,
+                uint64_t *const run_end_index) {
+  *run_start_index = 0;
+  if (quotient != 0)
+    *run_start_index = run_end(qf, quotient - 1) + 1;
+  *index = *run_start_index;
+  if (!is_occupied(qf, quotient)) {
+    // no such run
+    *run_end_index = *run_start_index;
+    return 0;
+  }
+  *run_end_index = run_end(qf, quotient) + 1;
+  uint64_t curr_remainder;
+  do {
+    if (!is_tombstone(qf, *index)) {
+      curr_remainder = get_slot(qf, *index) >> qf->metadata->value_bits;
+      if (remainder == curr_remainder)
+        return 1;
+      if (remainder < curr_remainder)
+        return 0;
+    }
+    *index += 1;
+  } while (*index < *run_end_index);
+  return 0;
+}
+
+// Find the space between primitive tombstones.
+static size_t _get_ts_space(HM *hm) {
+  size_t ts_space = hm->metadata->tombstone_space;
+  if (ts_space == 0) {
+    // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
+    qf_sync_counters(hm);
+    size_t nslots = hm->metadata->nslots;
+    size_t nelts = hm->metadata->nelts;
+#ifdef REBUILD_DEAMORTIZED_GRAVEYARD
+    ts_space = (2.5 * nslots) / (nslots - nelts);
+#elif REBUILD_AMORTIZED_GRAVEYARD
+    ts_space = (2 * nslots) / (nslots - nelts);
+#endif
+  }
+  return ts_space;
+}
+
+#endif
 
 #endif // TS_UTIL_H

@@ -43,8 +43,10 @@ extern "C" {
 		uint8_t offset; 
 		uint64_t occupieds[QF_METADATA_WORDS_PER_BLOCK];
 		uint64_t runends[QF_METADATA_WORDS_PER_BLOCK];
+		#ifdef QF_TOMBSTONE
 		// 1 for both empty or tombston, 0 for real items.
 		uint64_t tombstones[QF_METADATA_WORDS_PER_BLOCK];
+		#endif
 
 #if QF_BITS_PER_SLOT == 8
 		uint8_t  slots[QF_SLOTS_PER_BLOCK];
@@ -103,6 +105,7 @@ extern "C" {
 		uint64_t nblocks;
 		uint64_t nelts;						// Without tombstones
 		uint64_t noccupied_slots; // With tombstones
+		#ifdef QF_TOMBSTONE
 		uint64_t n_start_rebuild;	// n_occupied_slots to start rebuild.
 		uint64_t next_tombstone;	// Next position to put a tombstone.
 		uint64_t rebuild_run;     // Current rebuild position
@@ -110,6 +113,7 @@ extern "C" {
 		uint64_t nrebuilds;      	// Number of rebuilds per loop.
 		uint64_t rebuild_interval;// Number of slots to be rebuilt each time.
 		uint64_t rebuild_cd;  		// Rebuild window count down.
+		#endif
 	} quotient_filter_metadata;
 
 	typedef quotient_filter_metadata qfmetadata;

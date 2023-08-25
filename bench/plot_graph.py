@@ -1,17 +1,14 @@
 #!/usr/bin/python3
 import sys
 import pandas as pd
+import os
 from matplotlib import pyplot as plt
 
 dir = "bench_run"
-datastructs = [
-    "rhm",
-    "trhm",
-    "grhm",
-    "gzhm"
-]
+variants = os.listdir(dir)
 
-f = open("%s/test_params.txt" % (dir), "r")
+f = open("%s/%s/test_params.txt" % (dir, variants[0]), "r")
+
 lines = f.readlines()
 key_bits = int(lines[0])
 quotient_bits = int(lines[1])
@@ -25,8 +22,8 @@ for l in lines[6:]:
     churn_points.append(float(l))
 
 plt.figure(figsize=(20,6))
-for d in datastructs:
-    df = pd.read_csv('./%s/%s-load.txt' % (dir, d), delim_whitespace=True)
+for d in variants:
+    df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
     plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
     plt.xlabel("percent of keys inserted" )
     plt.ylabel("throughput")
@@ -37,8 +34,8 @@ plt.savefig("plot_insert.png")
 plt.close()
 
 plt.figure(figsize=(20,12))
-for d in datastructs:
-    df = pd.read_csv('./%s/%s-churn.txt' % (dir, d), delim_whitespace=True)
+for d in variants:
+    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
     plt.plot(df["x_0"], df["y_0"], label=d)
     plt.xlabel("percent of churn test" )
     plt.ylabel("throughput")
@@ -50,8 +47,8 @@ plt.savefig("plot_churn.png")
 plt.close()
 
 plt.figure(figsize=(20,12))
-for d in datastructs:
-    df = pd.read_csv('./%s/%s-churn.txt' % (dir, d), delim_whitespace=True)
+for d in variants:
+    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
     df = df[df["x_0"].ge(95.0)]
     plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
     plt.xlabel("percent of churn test" )

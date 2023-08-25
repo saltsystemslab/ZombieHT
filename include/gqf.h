@@ -114,39 +114,6 @@ extern "C" {
 #define QF_DOESNT_EXIST (-3)
 #define QF_KEY_EXISTS (-4)
 	
-	/* Insert this key/value pair.
-	 * Return value:
-	 *    == 0: key already exists in the CQF, update the value.
-	 *    == QF_DOESNT_EXIST: Specified key did not exist. Inserted it. It's not
-	 * 											  an error.
-	 *    == QF_NO_SPACE: the CQF has reached capacity.
-	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
-	 */
-	int qf_insert(QF *qf, uint64_t key, uint64_t value, uint8_t flags);
-	int qft_insert(QF *qf, uint64_t key, uint64_t value, uint8_t flags);
-
-	/* Remove this key.
-	 * Return value:
-	 *    == 0: Found and removed the key.
-	 *    == QF_DOESNT_EXIST: Specified item did not exist.
-	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
-	 */
-	int qf_remove(QF *qf, uint64_t key, uint8_t flags);
-	int qft_remove(QF *qf, uint64_t key, uint8_t flags);
-
-	/****************************************
-   Query functions
-	****************************************/
-	
-	/* Lookup the key.
-	 * Return value:
-	 *    == 0: Found the key and filled the value.
-	 *    == QF_DOESNT_EXIST: Specified item did not exist.
-	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
-	 */
-	int qf_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
-	int qft_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
-	
 	/* Return the number of times key has been inserted, with the given
 		 value, into qf.
 		 May return QF_COULDNT_LOCK if called with QF_TRY_LOCK.  */
