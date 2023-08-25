@@ -38,10 +38,37 @@ static int _deamortized_rebuild(HM *hm) {
 }
 #endif
 
+#ifdef REBUILD_AT_INSERT
+/* Start at `qf->metadata->rebuild_run`, 
+ * rebuild `qf->metadata->rebuild_interval` quotiens. 
+ * Leave the pushing tombstones at the beginning of the next run. 
+ * Here we do rebuild run by run. 
+ * Return the number of pushing tombstones at the end.
+ */
+static int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
+  size_t ts_space = _get_ts_space(hm);
+  size_t rebuild_interval = hm->metadata->rebuild_interval;
+  if (rebuild_interval == 0)
+    // Default rebuild interval: 1.5(pts space) [Our paper]
+    rebuild_interval = 2 * ts_space;
+  uint64_t hash = key2hash(hm, key, flags);
+  uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
+  quotien_remainder(hm, hash, &hash_bucket_index, &hash_remainder);
+  size_t from_run = hash_bucket_index;
+  size_t until_run = from_run + rebuild_interval;
+  hm->metadata->rebuild_run = until_run;
+  if (until_run >= hm->metadata->nslots) {
+    until_run = hm->metadata->nslots;
+    hm->metadata->rebuild_run = 0;
+  }
+  return _rebuild_1round(hm, from_run, until_run, ts_space);
+}
+#endif
+
 int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
   if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) {
     qft_rebuild(qf, QF_NO_LOCK);
-    assert(qf_get_num_occupied_slots(qf) < qf->metadata->nslots * 0.99);
+    if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) return QF_NO_SPACE;
   }
   if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
     fprintf(stderr, "RobinHood Tombstone HM assumes key is hash for now.");
@@ -199,8 +226,6 @@ void qft_rebuild(QF *hm, uint8_t flags) {
 		int ret = _rebuild_1round(hm, 0, hm->metadata->nslots, ts_space);
 		reset_rebuild_cd(hm);
 #elif REBUILD_DEAMORTIZED_GRAVEYARD
-		abort();
-#else
 		abort();
 #endif
 }

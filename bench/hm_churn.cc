@@ -54,9 +54,13 @@ void write_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t npoint
   fprintf(fp, "x_0    y_0\n");
   for (uint64_t exp = 0; exp < 2 * npoints; exp += 2) {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(ts[exp+1] - ts[exp]);
+    auto nanoseconds = duration.count();
     fprintf(fp, "%f", ((exp / 2.0) * (100.0 / npoints)));
-    fprintf(fp, " %f",
-            ((1.0 * num_ops / npoints) / duration.count()));
+    if (nanoseconds == 0)
+      fprintf(fp, " %f", 0.);
+    else
+      fprintf(fp, " %f",
+            ((1.0 * num_ops / npoints) / nanoseconds));
     fprintf(fp, "\n");
   }
   fclose(fp);
@@ -263,6 +267,7 @@ void run_ops(std::string phase_name,
 
     // TODO: Record time for this batch.
     ts[exp] = high_resolution_clock::now();
+    int ret = 0;
     for (uint64_t op_idx = i; op_idx < j; op_idx++) {
       if (op_idx == 0 || ops[op_idx].op != cur_op) {
         if (num_op) {
@@ -276,9 +281,10 @@ void run_ops(std::string phase_name,
       cur_op = ops[op_idx].op;
       hm_op op = ops[op_idx];
       num_op++;
+      ret = 0;
       switch (op.op) {
       case INSERT:
-        g_insert(op.key, op.value);
+        ret = g_insert(op.key, op.value);
         break;
       case DELETE:
         g_remove(op.key);
@@ -288,7 +294,10 @@ void run_ops(std::string phase_name,
         break;
       }
     }
-    ts[exp+1] = high_resolution_clock::now();
+    if (ret == QF_NO_SPACE)
+      ts[exp+1] = ts[exp];
+    else 
+      ts[exp+1] = high_resolution_clock::now();
   }
   if (num_op) {
     op_end_ts = high_resolution_clock::now();

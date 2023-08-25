@@ -48,12 +48,16 @@ int hm_insert(HM *hm, uint64_t key, uint64_t value, uint8_t flags) {
 
 #ifdef QF_TOMBSTONE
   int ret = qft_insert(hm, key, value, flags);
+  if (ret == QF_KEY_EXISTS) return ret;
 
 #ifdef REBUILD_DEAMORTIZED_GRAVEYARD
-  qf_sync_counters(hm);
-  if (ret >= 0) {
-    _deamortized_rebuild(hm);
-  }
+  if (ret < 0)
+    abort();
+  _deamortized_rebuild(hm);
+#elif REBUILD_AT_INSERT
+  if (ret < 0)
+    abort();
+  _deamortized_rebuild(hm, key, flags);
 #else 
   if (ret == QF_NO_SPACE) {
     hm_rebuild(hm, flags);
@@ -61,8 +65,8 @@ int hm_insert(HM *hm, uint64_t key, uint64_t value, uint8_t flags) {
   }
   if (ret == QF_KEY_EXISTS) return ret;
   if (ret < 0) {
-    fprintf(stderr, "Insert failed: %d\n", ret);
-    abort();
+    // fprintf(stderr, "Insert failed: %d\n", ret);
+    return ret;
   }
   if (--(hm->metadata->rebuild_cd) == 0) {
     int ret_rebuild = hm_rebuild(hm, flags);
