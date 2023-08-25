@@ -50,7 +50,7 @@ static int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
   size_t rebuild_interval = hm->metadata->rebuild_interval;
   if (rebuild_interval == 0)
     // Default rebuild interval: 1.5(pts space) [Our paper]
-    rebuild_interval = 2 * ts_space;
+    rebuild_interval = 1.5 * ts_space;
   uint64_t hash = key2hash(hm, key, flags);
   uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
   quotien_remainder(hm, hash, &hash_bucket_index, &hash_remainder);

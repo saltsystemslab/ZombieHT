@@ -269,6 +269,7 @@ void run_ops(std::string phase_name,
     ts[exp] = high_resolution_clock::now();
     int ret = 0;
     for (uint64_t op_idx = i; op_idx < j; op_idx++) {
+      ret = 0;
       if (op_idx == 0 || ops[op_idx].op != cur_op) {
         if (num_op) {
           op_end_ts = high_resolution_clock::now();
@@ -281,7 +282,6 @@ void run_ops(std::string phase_name,
       cur_op = ops[op_idx].op;
       hm_op op = ops[op_idx];
       num_op++;
-      ret = 0;
       switch (op.op) {
       case INSERT:
         ret = g_insert(op.key, op.value);
@@ -293,6 +293,8 @@ void run_ops(std::string phase_name,
         g_lookup(op.key, &lookup_value);
         break;
       }
+      if (ret == QF_NO_SPACE)
+        break;
     }
     if (ret == QF_NO_SPACE)
       ts[exp+1] = ts[exp];
