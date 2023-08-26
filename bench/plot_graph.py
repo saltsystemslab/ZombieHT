@@ -5,7 +5,9 @@ import os
 from matplotlib import pyplot as plt
 
 dir = "bench_run"
-variants = os.listdir(dir)
+if len(sys.argv) > 1:
+    dir = sys.argv[1]
+variants = next(os.walk(dir))[1]
 
 f = open("%s/%s/test_params.txt" % (dir, variants[0]), "r")
 
@@ -30,7 +32,7 @@ for d in variants:
 plt.legend()
 plt.title("LOAD PHASE: q_bits=%s, r_bits=%s, Load Factor=%s" 
     % (quotient_bits, key_bits - quotient_bits + value_bits, load_factor))
-plt.savefig("plot_insert.png")
+plt.savefig(os.path.join(dir, "plot_insert.png"))
 plt.close()
 
 plt.figure(figsize=(20,12))
@@ -43,7 +45,7 @@ for d in variants:
 plt.legend()
 plt.title("CHURN PHASE: q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
     % (quotient_bits, key_bits - quotient_bits + value_bits, 0, 0))
-plt.savefig("plot_churn.png")
+plt.savefig(os.path.join(dir, "plot_churn.png"))
 plt.close()
 
 plt.figure(figsize=(20,12))
@@ -61,6 +63,6 @@ for churn_point in churn_points:
 plt.legend()
 plt.title("CHURN PHASE: q_bits=%s, r_bits=%s #ChurnCycles: %s #ChurnoOp: %s" 
     % (quotient_bits, key_bits - quotient_bits + value_bits, churn_cycles, churn_ops))
-plt.savefig("plot_churn-95.png")
+plt.savefig(os.path.join(dir, "plot_churn-95.png"))
 plt.close()
 
