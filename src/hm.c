@@ -18,9 +18,9 @@ uint64_t hm_init(HM *hm, uint64_t nslots, uint64_t key_bits,
 
 
 bool hm_malloc(HM *hm, uint64_t nslots, uint64_t key_bits,
-                uint64_t value_bits, enum qf_hashmode hash, uint32_t seed) {
+                uint64_t value_bits, enum qf_hashmode hash, uint32_t seed, float max_load_factor) {
 
-  int ret = qf_malloc(hm, nslots, key_bits, value_bits, hash, seed);
+  int ret = qf_malloc(hm, nslots, key_bits, value_bits, hash, seed, max_load_factor);
 #ifdef QF_TOMBSTONE
   reset_rebuild_cd(hm);
 #endif

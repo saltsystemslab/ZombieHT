@@ -8,10 +8,10 @@
 
 HM g_hashmap;
 
-extern inline int g_init(uint64_t nslots, uint64_t key_size, uint64_t value_size)
+extern inline int g_init(uint64_t nslots, uint64_t key_size, uint64_t value_size, float max_load_factor)
 {
  	// log_2(nslots) will be used as quotient bits of key_size.
-	return hm_malloc(&g_hashmap, nslots, key_size, value_size, QF_HASH_NONE, 0);
+	return hm_malloc(&g_hashmap, nslots, key_size, value_size, QF_HASH_NONE, 0, max_load_factor);
 }
 
 extern inline int g_insert(uint64_t key, uint64_t val)

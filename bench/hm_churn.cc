@@ -322,7 +322,9 @@ void run_churn(std::vector<hm_op> &ops) {
   std::string churn_op = "churn.txt";
   std::string filename_load = dir + load_op;
   std::string filename_churn = dir +  churn_op;
-  g_init(num_slots, key_bits, value_bits);
+  float max_load_factor = initial_load_factor / 100.0;
+  printf("max_load_factor: %f\n", max_load_factor);
+  g_init(num_slots, key_bits, value_bits, max_load_factor);
   // LOAD PHASE.
   run_ops("load phase", ops, 0, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.

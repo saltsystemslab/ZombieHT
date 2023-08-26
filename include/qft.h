@@ -20,7 +20,7 @@ void qft_rebuild(QF *qf, uint8_t flags);
  * Here we do rebuild run by run. 
  * Return the number of pushing tombstones at the end.
  */
-static int _deamortized_rebuild(HM *hm) {
+int _deamortized_rebuild(HM *hm) {
   size_t ts_space = _get_ts_space(hm);
   size_t rebuild_interval = hm->metadata->rebuild_interval;
   if (rebuild_interval == 0)
@@ -45,7 +45,7 @@ static int _deamortized_rebuild(HM *hm) {
  * Here we do rebuild run by run. 
  * Return the number of pushing tombstones at the end.
  */
-static int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
+int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
   size_t ts_space = _get_ts_space(hm);
   size_t rebuild_interval = hm->metadata->rebuild_interval;
   if (rebuild_interval == 0)

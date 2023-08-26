@@ -18,7 +18,7 @@ uint64_t hm_init(HM *hm, uint64_t nslots, uint64_t key_bits,
                   void *buffer, uint64_t buffer_len);
 
 bool hm_malloc(HM *hm, uint64_t nslots, uint64_t key_bits,
-                uint64_t value_bits, enum qf_hashmode hash, uint32_t seed);
+                uint64_t value_bits, enum qf_hashmode hash, uint32_t seed, float max_load_factor);
 
 void hm_destroy(HM *hm);
 
