@@ -80,7 +80,7 @@ void write_churn_thrput_by_phase_to_file(
         delete_ts[2*i+1] - delete_ts[2*i]);
     auto nanoseconds = duration.count();
     total_delete_duration += duration.count();
-    if (nanoseconds != 0) {
+    if (nanoseconds > 0) {
       fprintf(fp, "%d %f DELETE\n", i, (1.0 * nchurn_ops)/nanoseconds);
     } else {
       fprintf(fp, "%d %f DELETE\n", i, 0.0);
@@ -89,7 +89,7 @@ void write_churn_thrput_by_phase_to_file(
     duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
         insert_ts[2*i+1] - insert_ts[2*i]);
     nanoseconds = duration.count();
-    if (nanoseconds != 0) {
+    if (nanoseconds > 0) {
       fprintf(fp, "%d %f INSERT\n", i, (1.0 * nchurn_ops)/nanoseconds);
     } else {
       fprintf(fp, "%d %f INSERT\n", i, 0.0);
@@ -303,7 +303,7 @@ void run_churn(
       op_index++;
     }
     if (ret == QF_NO_SPACE) {
-      insert_ts[2*i+1] = insert_ts[i];
+      insert_ts[2*i+1] = insert_ts[2*i];
     } else {
       insert_ts[2*i+1] = high_resolution_clock::now();
     }
