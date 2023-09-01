@@ -224,28 +224,28 @@ static int _rebuild_2round(GRHM *grhm) {
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
 // TODO: Maybe rename to amortized_redistribute_tombstones?
-static int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
-  size_t pts = (from_run / ts_space + 1) * ts_space - 1;
-  size_t curr_run = find_next_run(grhm, from_run);
-  size_t push_start = run_start(grhm, curr_run);
-  size_t push_end = push_start;
+static inline int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
+  size_t next_pts = (from_run / ts_space + 1) * ts_space - 1;  // quotient
+  size_t curr_run = find_next_run(grhm, from_run);             // quotient
+  size_t push_start = run_start(grhm, curr_run);  // index
+  size_t push_end = push_start;                   // index
   while (curr_run < until_run) {
-    if (curr_run >= pts) {
-      pts += ts_space;
-      if (push_start < push_end) {
+    if (curr_run >= next_pts) {     // Need a primitive tombstone here.
+      next_pts += ts_space;
+      if (push_start < push_end) {  // There are pushing tombstones.
         push_start += 1;
-      } else {
+      } else {                      // Need to insert a new tombstone.
         int ret = _insert_ts_at(grhm, push_start, curr_run);
-        if (ret < 0) return ret;
+        if (ret < 0) return ret;    // Failed to insert one (no space).
         push_end = push_start += 1;
         size_t n_skipped_runs = runends_cnt(grhm, push_start, ret);
-        if (n_skipped_runs > 0) {
+        if (n_skipped_runs > 0) {   // There is no tombstone in these skiped run
           curr_run = occupieds_select(grhm, curr_run, n_skipped_runs);
-          if (curr_run > pts) 
-            curr_run = find_next_run(grhm, pts);
+          if (curr_run > next_pts) 
+            curr_run = find_next_run(grhm, next_pts);
           push_end = push_start = run_start(grhm, curr_run);
           continue;
-        }
+        }  // Otherwise, we should continue this run.
       }
     }
     // Range of pushing tombstones is [push_start, push_end).
