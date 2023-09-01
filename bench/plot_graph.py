@@ -38,31 +38,25 @@ plt.close()
 plt.figure(figsize=(20,12))
 for d in variants:
     df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
+    df = df.loc[ (df["op"]=="DELETE") ]
     plt.plot(df["x_0"], df["y_0"], label=d)
-    plt.xlabel("percent of churn test" )
+    plt.xlabel("churn cycle" )
     plt.ylabel("throughput")
-
 plt.legend()
-plt.title("CHURN PHASE: q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
-    % (quotient_bits, key_bits - quotient_bits + value_bits, 0, 0))
-plt.savefig(os.path.join(dir, "plot_churn.png"))
+plt.title("CHURN PHASE (DELETE): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
+    % (quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
+plt.savefig(os.path.join(dir, "plot_churn_delete.png"))
 plt.close()
 
 plt.figure(figsize=(20,12))
 for d in variants:
     df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
-    df = df[df["x_0"].ge(95.0)]
-    plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
-    plt.xlabel("percent of churn test" )
+    df = df.loc[ (df["op"]=="INSERT") ]
+    plt.plot(df["x_0"], df["y_0"], label=d)
+    plt.xlabel("churn cycle" )
     plt.ylabel("throughput")
-
-for churn_point in churn_points:
-    if churn_point > 95.0:
-        plt.vlines(churn_point, 0, df["y_0"].max())
-
 plt.legend()
-plt.title("CHURN PHASE: q_bits=%s, r_bits=%s #ChurnCycles: %s #ChurnoOp: %s" 
-    % (quotient_bits, key_bits - quotient_bits + value_bits, churn_cycles, churn_ops))
-plt.savefig(os.path.join(dir, "plot_churn-95.png"))
+plt.title("CHURN PHASE (INSERTS): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
+    % (quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
+plt.savefig(os.path.join(dir, "plot_churn_insert.png"))
 plt.close()
-

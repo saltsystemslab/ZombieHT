@@ -48,14 +48,13 @@ uint64_t num_initial_load_keys = 0;
 bool is_silent = true;
 FILE *LOG;
 
-void write_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t npoints,
+void write_load_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t npoints,
                           std::string filename, uint64_t num_ops) {
   FILE *fp = fopen(filename.c_str(), "w");
   fprintf(fp, "x_0    y_0\n");
   for (uint64_t exp = 0; exp < 2 * npoints; exp += 2) {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(ts[exp+1] - ts[exp]);
     auto nanoseconds = duration.count();
-    fprintf(fp, "%f", ((exp / 2.0) * (100.0 / npoints)));
     if (nanoseconds == 0)
       fprintf(fp, " %f", 0.);
     else
@@ -63,6 +62,42 @@ void write_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t npoint
             ((1.0 * num_ops / npoints) / nanoseconds));
     fprintf(fp, "\n");
   }
+  fclose(fp);
+}
+
+void write_churn_thrput_by_phase_to_file(
+    time_point<high_resolution_clock> *delete_ts, 
+    time_point<high_resolution_clock> *insert_ts,
+    std::string filename) {
+  uint64_t total_ops = nchurn_ops * nchurns;
+  uint64_t total_insert_duration = 0;
+  uint64_t total_delete_duration = 0;
+
+  FILE *fp = fopen(filename.c_str(), "w");
+  fprintf(fp, "x_0    y_0    op\n");
+  for (int i=0; i<nchurns; i++) {
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        delete_ts[2*i+1] - delete_ts[2*i]);
+    auto nanoseconds = duration.count();
+    total_delete_duration += duration.count();
+    if (nanoseconds != 0) {
+      fprintf(fp, "%d %f DELETE\n", i, (1.0 * nchurn_ops)/nanoseconds);
+    } else {
+      fprintf(fp, "%d %f DELETE\n", i, 0.0);
+    }
+
+    duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        insert_ts[2*i+1] - insert_ts[2*i]);
+    nanoseconds = duration.count();
+    if (nanoseconds != 0) {
+      fprintf(fp, "%d %f INSERT\n", i, (1.0 * nchurn_ops)/nanoseconds);
+    } else {
+      fprintf(fp, "%d %f INSERT\n", i, 0.0);
+    }
+    total_insert_duration += duration.count();
+  }
+  printf("churn insert throughput (ops/microsec): %f\n", (total_ops / (0.001 * total_insert_duration)));
+  printf("churn delete throughput (ops/microsec): %f\n", (total_ops / (0.001 * total_delete_duration)));
   fclose(fp);
 }
 
@@ -239,60 +274,63 @@ std::vector<hm_op> generate_ops() {
   return ops;
 }
 
-void run_ops(std::string phase_name, 
-				std::vector<hm_op> &ops, uint64_t start, uint64_t end, size_t npoints,
-             std::string output_file) {
-  printf("Beginning %s\n", phase_name.c_str());
+void run_churn(
+				std::vector<hm_op> &ops, 
+        uint64_t start, 
+        std::string output_file) {
+  time_point<high_resolution_clock> insert_ts[nchurns * 2];
+  time_point<high_resolution_clock> delete_ts[nchurns * 2];
+  int op_index = start;
+  for (int i=0; i<nchurns; i++) {
+    int ret = 0;
+    // DELETE
+    delete_ts[2*i] = high_resolution_clock::now();
+    for (int j=0; j<nchurn_ops; j++) {
+#if DEBUG
+      assert(ops[op_index].op == DELETE);
+#endif
+      ret = g_remove(ops[op_index].key);
+      op_index++;
+    }
+    delete_ts[2*i+1] = high_resolution_clock::now();
+    // INSERT
+    insert_ts[2*i] = high_resolution_clock::now();
+    for (int j=0; j<nchurn_ops; j++) {
+#if DEBUG
+      assert(ops[op_index].op == INSERT);
+#endif
+      ret = g_insert(ops[op_index].key, ops[op_index].value);
+      op_index++;
+    }
+    if (ret == QF_NO_SPACE) {
+      insert_ts[2*i+1] = insert_ts[i];
+    } else {
+      insert_ts[2*i+1] = high_resolution_clock::now();
+    }
+  }
+  write_churn_thrput_by_phase_to_file(delete_ts, insert_ts, output_file);
+}
+
+void run_load(std::vector<hm_op> &ops, uint64_t num_initial_load_keys, size_t npoints, std::string output_file) {
   time_point<high_resolution_clock> ts[2 * npoints];
-  double op_durtn[3];
-  uint64_t op_cnt[3];
-
-  op_durtn[INSERT] = 0;
-  op_durtn[DELETE] = 0;
-  op_durtn[LOOKUP] = 0;
-  op_cnt[INSERT] = 0;
-  op_cnt[DELETE] = 0;
-  op_cnt[LOOKUP] = 0;
-  time_point<high_resolution_clock> op_begin_ts;
-  time_point<high_resolution_clock> op_end_ts;
-  int cur_op = 0;
-  uint64_t num_op = 0;
-
-  uint64_t nops = (end - start);
-  uint64_t i, j, lookup_value = 0;
+  time_point<high_resolution_clock> load_begin_ts;
+  time_point<high_resolution_clock> load_end_ts;
+  uint64_t nops = num_initial_load_keys;
+  uint64_t i, j;
+  load_begin_ts = high_resolution_clock::now();
   for (size_t exp = 0; exp < 2 * npoints; exp += 2) {
-    i = (exp / 2) * (nops / npoints) + start;
-    j = ((exp / 2) + 1) * (nops / npoints) + start;
+    i = (exp / 2) * (nops / npoints);
+    j = ((exp / 2) + 1) * (nops / npoints);
     fprintf(LOG, "Round: %lu OPS %s [%lu %lu]\n", exp, output_file.c_str(), i, j);
 
-    // TODO: Record time for this batch.
     ts[exp] = high_resolution_clock::now();
     int ret = 0;
     for (uint64_t op_idx = i; op_idx < j; op_idx++) {
-      ret = 0;
-      if (op_idx == 0 || ops[op_idx].op != cur_op) {
-        if (num_op) {
-          op_end_ts = high_resolution_clock::now();
-          op_durtn[cur_op] += duration_cast<nanoseconds>(op_end_ts - op_begin_ts).count();
-          op_cnt[cur_op] += num_op;
-        }
-        op_begin_ts = high_resolution_clock::now();
-        num_op = 0;
-      }
-      cur_op = ops[op_idx].op;
       hm_op op = ops[op_idx];
-      num_op++;
-      switch (op.op) {
-      case INSERT:
-        ret = g_insert(op.key, op.value);
-        break;
-      case DELETE:
-        g_remove(op.key);
-        break;
-      case LOOKUP:
-        g_lookup(op.key, &lookup_value);
-        break;
-      }
+  #if DEBUG
+      assert(op.op == INSERT);
+  #endif
+      ret = g_insert(op.key, op.value);
       if (ret == QF_NO_SPACE)
         break;
     }
@@ -301,15 +339,10 @@ void run_ops(std::string phase_name,
     else 
       ts[exp+1] = high_resolution_clock::now();
   }
-  if (num_op) {
-    op_end_ts = high_resolution_clock::now();
-    op_durtn[cur_op] += duration_cast<nanoseconds>(op_end_ts - op_begin_ts).count();
-    op_cnt[cur_op] += num_op;
-  }
-  write_thrput_to_file(ts, npoints, output_file, nops);
-  printf("insert throughput (ops/microsec): %f\n", 0.001 * op_durtn[INSERT] / op_cnt[INSERT]);
-  printf("delete throughput (ops/microsec): %f\n", 0.001 * op_durtn[DELETE] / op_cnt[DELETE]);
-  printf("lookup throughput (ops/microsec): %f\n", 0.001 * op_durtn[LOOKUP] / op_cnt[LOOKUP]);
+  load_end_ts = high_resolution_clock::now();
+  auto load_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(load_end_ts - load_begin_ts).count();
+  write_load_thrput_to_file(ts, npoints, output_file, nops);
+  printf("overall load insert throughput (ops/microsec): %f\n", num_initial_load_keys/(load_duration * 0.001));
 }
 
 void setup(std::string dir) {
@@ -317,7 +350,7 @@ void setup(std::string dir) {
   assert(system(mkdir.c_str()) == 0);
 }
 
-void run_churn(std::vector<hm_op> &ops) {
+void churn_test(std::vector<hm_op> &ops) {
   std::string load_op = "load.txt";
   std::string churn_op = "churn.txt";
   std::string filename_load = dir + load_op;
@@ -326,9 +359,9 @@ void run_churn(std::vector<hm_op> &ops) {
   printf("max_load_factor: %f\n", max_load_factor);
   g_init(num_slots, key_bits, value_bits, max_load_factor);
   // LOAD PHASE.
-  run_ops("load phase", ops, 0, num_initial_load_keys, npoints, filename_load);
+  run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
-  run_ops("churn phase", ops, num_initial_load_keys, ops.size(), npoints, filename_churn);
+  run_churn(ops, num_initial_load_keys, filename_churn);
   g_destroy();
 }
 
@@ -368,6 +401,6 @@ int main(int argc, char **argv) {
   if (should_record) {
     write_ops(record_file, key_bits, quotient_bits, value_bits, ops);
   }
-	run_churn(ops);
+	churn_test(ops);
   return 0;
 }
