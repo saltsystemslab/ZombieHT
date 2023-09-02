@@ -34,7 +34,11 @@ int _deamortized_rebuild(HM *hm) {
     until_run = hm->metadata->nslots;
     hm->metadata->rebuild_run = 0;
   }
+#ifdef REBUILD_NO_INSERT
+  return _rebuild_no_insertion(hm, from_run, until_run, ts_space);
+#else
   return _rebuild_1round(hm, from_run, until_run, ts_space);
+#endif
 }
 #endif
 
@@ -168,6 +172,17 @@ int qft_remove(HM *qf, uint64_t key, uint8_t flags) {
   SET_T(qf, current_index);
 	modify_metadata(&qf->runtimedata->pc_nelts, -1);
 
+#ifdef DELETE_AND_PUSH
+  // push the tombstone to the end of the run
+  while (!is_runend(qf, current_index)) {
+    // push 1 slot at a time.
+    set_slot(qf, current_index, get_slot(qf, current_index+1));
+    RESET_T(qf, current_index);
+    SET_T(qf, current_index+1);
+    current_index++;
+  }
+#endif
+
   // Make sure that the run never end with a tombstone.
   while (is_runend(qf, current_index) && is_tombstone(qf, current_index)) {
     RESET_R(qf, current_index);
@@ -176,6 +191,7 @@ int qft_remove(HM *qf, uint64_t key, uint8_t flags) {
       RESET_O(qf, hash_bucket_index);
       if (is_empty_ts(qf, current_index))
         modify_metadata(&qf->runtimedata->pc_noccupied_slots, -1);
+      --current_index;
       break;
     } else {
       SET_R(qf, current_index-1);
@@ -184,11 +200,46 @@ int qft_remove(HM *qf, uint64_t key, uint8_t flags) {
       --current_index;
     }
   }
+  current_index++;
   // fix block offset if necessary
 #ifdef _BLOCKOFFSET_4_NUM_RUNENDS
   _recalculate_block_offsets(qf, hash_bucket_index, runend_index);
 #else
   _recalculate_block_offsets(qf, hash_bucket_index);
+#endif
+
+#ifdef DELETE_AND_PUSH
+  size_t ts_space = _get_ts_space(qf);
+  // Now the current_index is the new ts. 
+  // It is either the first one of the next run or became an empty slot.
+  size_t curr_run = find_next_run(qf, hash_bucket_index+1);
+  size_t next_pts = (curr_run / ts_space + 1) * ts_space - 1;
+  while (current_index >= curr_run) {  // still in the cluster
+    if (curr_run >= next_pts) {
+      if (is_tombstone(qf, current_index+1)) {
+        // There is already a primitive tombstone.
+        current_index++;
+        next_pts += ts_space;
+      } else {
+        // Leave this ts as a primitive tombstone.
+        break;
+      }
+    }
+    // push the tombstone out of the run
+    while (!is_runend(qf, current_index)) {
+      // push 1 slot at a time.
+      set_slot(qf, current_index, get_slot(qf, current_index+1));
+      RESET_T(qf, current_index);
+      SET_T(qf, current_index+1);
+      current_index++;
+    }
+    RESET_R(qf, current_index);
+    SET_R(qf, current_index-1);
+    _recalculate_block_offsets(qf, curr_run, current_index);
+    curr_run = find_next_run(qf, curr_run+1);
+  }  // Otherwise, we reached the end of the cluster.
+  if (current_index < curr_run)
+    modify_metadata(&qf->runtimedata->pc_noccupied_slots, -1);
 #endif
 
   if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
@@ -221,9 +272,13 @@ void qft_rebuild(QF *hm, uint8_t flags) {
 #ifdef REBUILD_BY_CLEAR
     _clear_tombstones(hm);
     reset_rebuild_cd(hm);
-#elif REBUILD_AMORTIZED_GRAVEYARD
+#elif AMORTIZED_REBUILD
 		size_t ts_space = _get_ts_space(hm);
+#ifdef REBUILD_NO_INSERT
 		int ret = _rebuild_1round(hm, 0, hm->metadata->nslots, ts_space);
+#else
+		int ret = _rebuild_no_insertion(hm, 0, hm->metadata->nslots, ts_space);
+#endif
 		reset_rebuild_cd(hm);
 #elif REBUILD_DEAMORTIZED_GRAVEYARD
 		abort();

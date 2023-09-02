@@ -272,16 +272,16 @@ static inline int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, s
 /* Rebuild within 1 round. 
  * There may exists overlap between shifts for insertion consecutive tombstones.
  */
-static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
-  size_t pts = (from_run / ts_space + 1) * ts_space - 1;
+static int _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, size_t ts_space) {
+  size_t next_pts = (from_run / ts_space + 1) * ts_space - 1;
   size_t curr_run = find_next_run(grhm, from_run);
   size_t push_start = run_start(grhm, curr_run);
   size_t push_end = push_start;
   size_t n_skipped_ts = 0;
   while (curr_run < until_run) {
-    if (curr_run >= pts) {
+    while (curr_run >= next_pts) {
       n_skipped_ts += 1;
-      while (curr_run >= pts) pts += ts_space;
+      next_pts += ts_space;
     }
     // Range of pushing tombstones is [push_start, push_end).
     _push_over_run_skip_ts(grhm, &push_start, &push_end, &n_skipped_ts);
@@ -301,6 +301,7 @@ static void _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, s
       push_end = MAX(push_end, push_start);
     }
   }
+  return 0;
 }
 
 static void reset_rebuild_cd(HM *hm) {
@@ -321,7 +322,7 @@ static void reset_rebuild_cd(HM *hm) {
     double x = (double)nslots / (double)(nslots - nelts);
     hm->metadata->rebuild_cd = (int)((double)nslots/log(x+2)/log(x+2));
     // fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
-#elif REBUILD_AMORTIZED_GRAVEYARD
+#elif AMORTIZED_REBUILD
     hm->metadata->rebuild_cd = (nslots - nelts) / 4;
     // fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
 #endif
@@ -366,7 +367,7 @@ static size_t _get_ts_space(HM *hm) {
     size_t nelts = hm->metadata->nelts;
 #if defined REBUILD_DEAMORTIZED_GRAVEYARD || defined REBUILD_AT_INSERT
     ts_space = (2.5 * nslots) / (nslots - nelts);
-#elif REBUILD_AMORTIZED_GRAVEYARD
+#elif AMORTIZED_REBUILD
     ts_space = (2 * nslots) / (nslots - nelts);
 #endif
   }
