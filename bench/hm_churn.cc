@@ -41,6 +41,7 @@ int nchurns = 10;
 int nchurn_ops = 500;
 int npoints = 50;
 int should_record = 0;
+int churn_latency_sample_rate = 1000;
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
 uint64_t num_slots = 0;
@@ -55,6 +56,7 @@ void write_load_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t n
   for (uint64_t exp = 0; exp < 2 * npoints; exp += 2) {
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(ts[exp+1] - ts[exp]);
     auto nanoseconds = duration.count();
+    fprintf(fp, "%f", ((exp / 2.0) * (100.0 / npoints)));
     if (nanoseconds == 0)
       fprintf(fp, " %f", 0.);
     else
@@ -112,6 +114,25 @@ void write_churn_thrput_by_phase_to_file(
   fclose(fp);
 }
 
+void write_churn_latency_by_phase_to_file(
+    std::vector<uint64_t> delete_latencies,
+    std::vector<uint64_t> insert_latencies,
+    std::vector<uint64_t> lookup_latencies,
+    std::string filename) {
+  FILE *fp = fopen(filename.c_str(), "w");
+  fprintf(fp, "op    latency\n");
+  for (auto latency : delete_latencies) {
+    fprintf(fp, "DELETE %lu\n", latency);
+  }
+  for (auto latency : insert_latencies) {
+    fprintf(fp, "INSERT %lu\n", latency);
+  }
+  for (auto latency : lookup_latencies) {
+    fprintf(fp, "LOOKUP %lu\n", latency);
+  }
+  fclose(fp);
+}
+
 void usage(char *name) {
   printf(
       "%s [OPTIONS]\n"
@@ -126,7 +147,8 @@ void usage(char *name) {
       "cycle ]\n"
       "  -r record             [ Whether to record. If 1 will record to -f. Use test_runner to replay or check test case.]\n"
       "  -f record/replay file [ File to record to. Default test_case.txt ]"
-      "  -p npoints            [ number of points on the graph.  Default 20 "
+      "  -p npoints            [ number of points on the graph.  Default 20] "
+      "  -g latency sample rate[ churn op latency sampling rate.  Default 1000]"
       "  -s silent             [ Default 1. Use 0 for verbose mode"
       "]\n",
       name);
@@ -137,7 +159,7 @@ void parseArgs(int argc, char **argv) {
   int opt;
   char *term;
 
-  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:l:f:p:r:s:")) != -1) {
+  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:l:f:p:r:s:g:")) != -1) {
     switch (opt) {
 		case 'd':
 				dir = std::string(optarg);
@@ -222,6 +244,11 @@ void parseArgs(int argc, char **argv) {
       usage(argv[0]);
       exit(1);
       break;
+    case 'g':
+      churn_latency_sample_rate = strtol(optarg, &term, 10);
+      if (*term) {
+      }
+      break;
     }
   }
   if (should_record) {
@@ -296,11 +323,18 @@ std::vector<hm_op> generate_ops() {
 void run_churn(
 				std::vector<hm_op> &ops, 
         uint64_t start, 
-        std::string output_file) {
+        std::string thrput_output_file,
+        std::string latency_output_file) {
+  int op_index = start;
   time_point<high_resolution_clock> insert_ts[nchurns * 2];
   time_point<high_resolution_clock> delete_ts[nchurns * 2];
   time_point<high_resolution_clock> lookup_ts[nchurns * 2];
-  int op_index = start;
+  bool should_sample = false;
+  time_point<high_resolution_clock> sample_start;
+  time_point<high_resolution_clock> sample_end;
+  vector<uint64_t> delete_latency_samples;
+  vector<uint64_t> insert_latency_samples;
+  vector<uint64_t> lookup_latency_samples;
   for (int i=0; i<nchurns; i++) {
     int ret = 0;
     // DELETE
@@ -309,7 +343,16 @@ void run_churn(
 #if DEBUG
       assert(ops[op_index].op == DELETE);
 #endif
-      ret = g_remove(ops[op_index].key);
+      if (should_sample) {
+        sample_start = high_resolution_clock::now();
+      }
+        ret = g_remove(ops[op_index].key);
+      if (should_sample) {
+        sample_end = high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(sample_end- sample_start);
+        delete_latency_samples.push_back(duration.count());
+      }
+      should_sample = ((op_index % churn_latency_sample_rate) == 0);
       op_index++;
     }
     delete_ts[2*i+1] = high_resolution_clock::now();
@@ -319,7 +362,16 @@ void run_churn(
 #if DEBUG
       assert(ops[op_index].op == INSERT);
 #endif
+      if (should_sample) {
+        sample_start = high_resolution_clock::now();
+      }
       ret = g_insert(ops[op_index].key, ops[op_index].value);
+      if (should_sample) {
+        sample_end = high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(sample_end- sample_start);
+        insert_latency_samples.push_back(duration.count());
+      }
+      should_sample = ((op_index % churn_latency_sample_rate) == 0);
       op_index++;
     }
     if (ret == QF_NO_SPACE) {
@@ -334,12 +386,22 @@ void run_churn(
           assert(ops[op_index].op == LOOKUP);
     #endif
       uint64_t lookup_value;
+      if (should_sample) {
+        sample_start = high_resolution_clock::now();
+      }
       ret = g_lookup(ops[op_index].key, &lookup_value);
+      if (should_sample) {
+        sample_end = high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(sample_end- sample_start);
+        lookup_latency_samples.push_back(duration.count());
+      }
+      should_sample = ((op_index % churn_latency_sample_rate) == 0);
       op_index++;
     }
     lookup_ts[2*i+1] = high_resolution_clock::now();
   }
-  write_churn_thrput_by_phase_to_file(delete_ts, insert_ts, lookup_ts, output_file);
+  write_churn_thrput_by_phase_to_file(delete_ts, insert_ts, lookup_ts, thrput_output_file);
+  write_churn_latency_by_phase_to_file(delete_latency_samples, insert_latency_samples, lookup_latency_samples, latency_output_file);
 }
 
 void run_load(std::vector<hm_op> &ops, uint64_t num_initial_load_keys, size_t npoints, std::string output_file) {
@@ -383,16 +445,18 @@ void setup(std::string dir) {
 
 void churn_test(std::vector<hm_op> &ops) {
   std::string load_op = "load.txt";
-  std::string churn_op = "churn.txt";
+  std::string churn_thrput = "churn_thrput.txt";
+  std::string churn_latency = "churn_latency.txt";
   std::string filename_load = dir + load_op;
-  std::string filename_churn = dir +  churn_op;
+  std::string filename_churn_thrput = dir +  churn_thrput;
+  std::string filename_churn_latency = dir +  churn_latency;
   float max_load_factor = initial_load_factor / 100.0;
   printf("max_load_factor: %f\n", max_load_factor);
   g_init(num_slots, key_bits, value_bits, max_load_factor);
   // LOAD PHASE.
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
-  run_churn(ops, num_initial_load_keys, filename_churn);
+  run_churn(ops, num_initial_load_keys, filename_churn_thrput, filename_churn_latency);
   g_destroy();
 }
 
