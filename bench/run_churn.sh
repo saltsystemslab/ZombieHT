@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # run_args="-k 36 -q 20 -v 0 -c 100 -l 3000 -i 95 -s 1"
-run_args="-k 38 -q 22 -v 0 -c 100 -l 10000 -i 95 -s 1"
-# run_args="-k 43 -q 27 -v 0 -c 100 -l 400000 -i 95 -s 1"
+# run_args="-k 38 -q 22 -v 0 -c 100 -l 10000 -i 95 -s 1"
+run_args="-k 43 -q 27 -v 0 -c 100 -l 400000 -i 95 -s 1 -g 100"
 # run_args="-k 38 -q 30 -v 0 -c 100 -l 40000 -i 95 -s 1"
 
 if [ -z "$1" ]; then

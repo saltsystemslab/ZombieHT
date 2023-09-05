@@ -23,6 +23,34 @@ churn_points = []
 for l in lines[6:]: 
     churn_points.append(float(l))
 
+def plot_churn_op_throuput(op):
+    plt.figure(figsize=(20,12))
+    for d in variants:
+        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+        df = df.loc[ (df["op"]==op) ]
+        plt.plot(df["x_0"], df["y_0"], label=d)
+        plt.xlabel("churn cycle" )
+        plt.ylabel("throughput")
+    plt.legend()
+    plt.title("CHURN PHASE (%s): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
+    % (op ,quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
+    plt.savefig(os.path.join(dir, "plot_churn_%s.png" % op))
+    plt.close()
+
+def plot_latency_boxplots(op):
+    data = []
+    labels = []
+    for d in variants:
+        df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
+        df = df.loc[(df["op"]==op)]
+        data.append(df["latency"])
+        labels.append(d)
+    plt.figure(figsize=(20,12))
+    plt.yscale('log')
+    plt.boxplot(data, labels=labels)
+    plt.savefig(os.path.join(dir, "plot_churn_latency_%s.png" % op))
+    plt.close()
+
 plt.figure(figsize=(20,6))
 for d in variants:
     df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
@@ -35,28 +63,10 @@ plt.title("LOAD PHASE: q_bits=%s, r_bits=%s, Load Factor=%s"
 plt.savefig(os.path.join(dir, "plot_insert.png"))
 plt.close()
 
-plt.figure(figsize=(20,12))
-for d in variants:
-    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
-    df = df.loc[ (df["op"]=="DELETE") ]
-    plt.plot(df["x_0"], df["y_0"], label=d)
-    plt.xlabel("churn cycle" )
-    plt.ylabel("throughput")
-plt.legend()
-plt.title("CHURN PHASE (DELETE): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
-    % (quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
-plt.savefig(os.path.join(dir, "plot_churn_delete.png"))
-plt.close()
+plot_churn_op_throuput("DELETE")
+plot_churn_op_throuput("INSERT")
+plot_churn_op_throuput("LOOKUP")
 
-plt.figure(figsize=(20,12))
-for d in variants:
-    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
-    df = df.loc[ (df["op"]=="INSERT") ]
-    plt.plot(df["x_0"], df["y_0"], label=d)
-    plt.xlabel("churn cycle" )
-    plt.ylabel("throughput")
-plt.legend()
-plt.title("CHURN PHASE (INSERTS): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
-    % (quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
-plt.savefig(os.path.join(dir, "plot_churn_insert.png"))
-plt.close()
+plot_latency_boxplots("DELETE")
+plot_latency_boxplots("INSERT")
+plot_latency_boxplots("LOOKUP")
