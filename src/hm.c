@@ -58,7 +58,7 @@ int hm_insert(HM *hm, uint64_t key, uint64_t value, uint8_t flags) {
   if (ret < 0)
     return ret;
   _deamortized_rebuild(hm, key, flags);
-#else 
+#elif AMORTIZED_REBUILD
   if (ret == QF_NO_SPACE) {
     hm_rebuild(hm, flags);
     ret = qft_insert(hm, key, value, flags);
@@ -81,7 +81,7 @@ int hm_insert(HM *hm, uint64_t key, uint64_t value, uint8_t flags) {
   return ret;
 #else
   return qf_insert(hm, key, value, flags);
-  #endif
+#endif
 }
 
 int hm_remove(HM *hm, uint64_t key, uint8_t flags) {

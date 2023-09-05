@@ -37,7 +37,7 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
   std::map<uint64_t, uint64_t> map;
   std::vector<uint64_t> deleted_keys;
 
-  for (int i = 0; i < nkeys; i++) {
+  for (size_t i = 0; i < nkeys; i++) {
     uint64_t key = keys[i] & BITMASK(key_bits);
     uint64_t value = values[i] & BITMASK(value_bits);
     ops.push_back({INSERT, key, value});
@@ -84,7 +84,7 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
       break;
     case DELETE:
       ops.push_back({DELETE, key, existing_value});
-      if (existing_value != -1) {
+      if (existing_value != -1u) {
         deleted_keys.push_back(key);
         map.erase(key);
       }
@@ -210,7 +210,8 @@ int main(int argc, char **argv) {
   cout << "Key Bits: " << key_bits << std::endl;
   cout << "Quotient Bits: " << quotient_bits << std::endl;
   cout << "Value Bits: " << value_bits << std::endl;
-  cout << "LoadFactor : " << initial_load_factor << std::endl;
+  float max_load_factor = initial_load_factor / 100.0;
+  cout << "LoadFactor : " << max_load_factor << std::endl;
   cout << "Num Ops: " << num_ops << std::endl;
   cout << "Is Replay: " << should_replay << std::endl;
   cout << "Test Case Replay File: " << replay_file << std::endl;
@@ -225,15 +226,15 @@ int main(int argc, char **argv) {
   write_ops(replay_file, key_bits, quotient_bits, value_bits, ops);
 
   std::map<uint64_t, uint64_t> map;
-  g_init((1ULL<<quotient_bits), key_bits, value_bits);
+  g_init((1ULL<<quotient_bits), key_bits, value_bits, max_load_factor);
   uint64_t key, value;
   int ret, key_exists;
-  for (int i=0; i < ops.size(); i++) {
+  for (size_t i=0; i < ops.size(); i++) {
     auto op = ops[i];
     key = op.key;
     value = op.value;
     if (verbose_flag)
-      printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
+      printf("%lu op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
     switch(op.op) {
       case INSERT:
         map[key] = value;

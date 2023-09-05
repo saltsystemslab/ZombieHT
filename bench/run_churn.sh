@@ -11,23 +11,30 @@ else
     out_dir="$1"
 fi
 
-set -x
-
 rm -rf $out_dir/*
 
-make clean hm_churn BLOCKOFFSET_4_NUM_RUNENDS=1 T=1 REBUILD_DEAMORTIZED_GRAVEYARD=1
+make clean hm_churn VAR=GZHM
 ./hm_churn $run_args -d $out_dir/gzhm/
 
-make clean hm_churn BLOCKOFFSET_4_NUM_RUNENDS=1 T=1 REBUILD_AT_INSERT=1
-./hm_churn $run_args -d $out_dir/gzhm_insert/
+# make clean hm_churn VAR=GZHM_NO_INSERT
+# ./hm_churn $run_args -d $out_dir/gzhm-no-ins/
 
-make clean hm_churn BLOCKOFFSET_4_NUM_RUNENDS=1
+make clean hm_churn VAR=GZHM_DELETE
+./hm_churn $run_args -d $out_dir/gzhm-delete/
+
+# make clean hm_churn VAR=GZHM_INSERT
+# ./hm_churn $run_args -d $out_dir/gzhm_insert/
+
+make clean hm_churn VAR=RHM
 ./hm_churn $run_args -d $out_dir/rhm/
 
-make clean hm_churn BLOCKOFFSET_4_NUM_RUNENDS=1 T=1
-./hm_churn $run_args -d $out_dir/trhm/
+# make clean hm_churn VAR=TRHM
+# ./hm_churn $run_args -d $out_dir/trhm/
 
-make clean hm_churn BLOCKOFFSET_4_NUM_RUNENDS=1 T=1 REBUILD_AMORTIZED_GRAVEYARD=1
+make clean hm_churn VAR=GRHM
 ./hm_churn $run_args -d $out_dir/grhm/
+
+# make clean hm_churn VAR=GRHM_NO_INSERT
+# ./hm_churn $run_args -d $out_dir/grhm-no-ins/
 
 ./bench/plot_graph.py $out_dir
