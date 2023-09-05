@@ -23,8 +23,12 @@ churn_points = []
 for l in lines[6:]: 
     churn_points.append(float(l))
 
+def add_caption():
+    plt.text(.5, -0.15, f"q_bits={quotient_bits}, r_bits={key_bits - quotient_bits + value_bits}, ChurnOps: {churn_ops}, ChurnCycles: {churn_cycles}", ha='center', transform=plt.gca().transAxes)
+
+
 def plot_churn_op_throuput(op):
-    plt.figure(figsize=(20,12))
+    plt.figure(figsize=(10,6))
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[ (df["op"]==op) ]
@@ -32,8 +36,9 @@ def plot_churn_op_throuput(op):
         plt.xlabel("churn cycle" )
         plt.ylabel("throughput")
     plt.legend()
-    plt.title("CHURN PHASE (%s): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
-    % (op ,quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
+    plt.title(f"CHURN PHASE {op} Throughput")
+    add_caption()
+    plt.tight_layout()
     plt.savefig(os.path.join(dir, "plot_churn_%s.png" % op))
     plt.close()
 
@@ -45,9 +50,12 @@ def plot_latency_boxplots(op):
         df = df.loc[(df["op"]==op)]
         data.append(df["latency"])
         labels.append(d)
-    plt.figure(figsize=(20,12))
+    fig = plt.figure(figsize=(10,6))
     plt.yscale('log')
     plt.boxplot(data, labels=labels)
+    plt.title(f"{op} Latencies")
+    add_caption()
+    plt.tight_layout()
     plt.savefig(os.path.join(dir, "plot_churn_latency_%s.png" % op))
     plt.close()
 
@@ -58,8 +66,9 @@ for d in variants:
     plt.xlabel("percent of keys inserted" )
     plt.ylabel("throughput")
 plt.legend()
-plt.title("LOAD PHASE: q_bits=%s, r_bits=%s, Load Factor=%s" 
-    % (quotient_bits, key_bits - quotient_bits + value_bits, load_factor))
+plt.title("LOAD PHASE")
+add_caption()
+plt.tight_layout()
 plt.savefig(os.path.join(dir, "plot_insert.png"))
 plt.close()
 
