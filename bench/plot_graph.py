@@ -60,3 +60,16 @@ plt.title("CHURN PHASE (INSERTS): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles:
     % (quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
 plt.savefig(os.path.join(dir, "plot_churn_insert.png"))
 plt.close()
+
+plt.figure(figsize=(20,12))
+for d in variants:
+    df = pd.read_csv('./%s/%s/churn.txt' % (dir, d), delim_whitespace=True)
+    df = df.loc[ (df["op"]=="LOOKUP") ]
+    plt.plot(df["x_0"], df["y_0"], label=d)
+    plt.xlabel("churn cycle" )
+    plt.ylabel("throughput")
+plt.legend()
+plt.title("CHURN PHASE (LOOKUP): q_bits=%s, r_bits=%s ChurnOps: %s ChurnCycles: %s" 
+    % (quotient_bits, key_bits - quotient_bits + value_bits, churn_ops, churn_cycles))
+plt.savefig(os.path.join(dir, "plot_churn_lookup.png"))
+plt.close()

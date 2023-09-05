@@ -68,10 +68,12 @@ void write_load_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t n
 void write_churn_thrput_by_phase_to_file(
     time_point<high_resolution_clock> *delete_ts, 
     time_point<high_resolution_clock> *insert_ts,
+    time_point<high_resolution_clock> *lookup_ts,
     std::string filename) {
   uint64_t total_ops = nchurn_ops * nchurns;
   uint64_t total_insert_duration = 0;
   uint64_t total_delete_duration = 0;
+  uint64_t total_lookup_duration = 0;
 
   FILE *fp = fopen(filename.c_str(), "w");
   fprintf(fp, "x_0    y_0    op\n");
@@ -94,10 +96,19 @@ void write_churn_thrput_by_phase_to_file(
     } else {
       fprintf(fp, "%d %f INSERT\n", i, 0.0);
     }
-    total_insert_duration += duration.count();
+    duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        lookup_ts[2*i+1] - lookup_ts[2*i]);
+    nanoseconds = duration.count();
+    if (nanoseconds != 0) {
+      fprintf(fp, "%d %f LOOKUP\n", i, (1.0 * nchurn_ops)/nanoseconds);
+    } else {
+      fprintf(fp, "%d %f LOOKUP\n", i, 0.0);
+    }
+    total_lookup_duration += duration.count();
   }
   printf("churn insert throughput (ops/microsec): %f\n", (total_ops / (0.001 * total_insert_duration)));
   printf("churn delete throughput (ops/microsec): %f\n", (total_ops / (0.001 * total_delete_duration)));
+  printf("churn lookup throughput (ops/microsec): %f\n", (total_ops / (0.001 * total_lookup_duration)));
   fclose(fp);
 }
 
@@ -248,6 +259,7 @@ std::vector<hm_op> generate_ops() {
 
   // CHURN PHASE
   uint64_t *keys_indexes_to_delete = new uint64_t[nchurn_ops];
+  uint64_t *keys_indexes_to_query = new uint64_t[nchurn_ops];
   uint64_t *new_keys = new uint64_t[nchurn_ops];
   uint64_t *new_values = new uint64_t[nchurn_ops];
   for (int churn_cycle = 0; churn_cycle < nchurns; churn_cycle++) {
@@ -255,6 +267,7 @@ std::vector<hm_op> generate_ops() {
     RAND_bytes((unsigned char *)new_keys, nchurn_ops * sizeof(uint64_t));
     RAND_bytes((unsigned char *)new_values, nchurn_ops * sizeof(uint64_t));
     RAND_bytes((unsigned char *)keys_indexes_to_delete, nchurn_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)keys_indexes_to_query, nchurn_ops * sizeof(uint64_t));
 
     for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
@@ -270,6 +283,12 @@ std::vector<hm_op> generate_ops() {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       kv[index] = make_pair(key, value);
     }
+    for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+      uint64_t index = keys_indexes_to_query[churn_op] % kv.size();
+      uint64_t key = kv[index].first;
+      uint64_t value = kv[index].second;
+      ops.push_back(hm_op{LOOKUP, key, value});
+    }
   }
   return ops;
 }
@@ -280,6 +299,7 @@ void run_churn(
         std::string output_file) {
   time_point<high_resolution_clock> insert_ts[nchurns * 2];
   time_point<high_resolution_clock> delete_ts[nchurns * 2];
+  time_point<high_resolution_clock> lookup_ts[nchurns * 2];
   int op_index = start;
   for (int i=0; i<nchurns; i++) {
     int ret = 0;
@@ -307,8 +327,19 @@ void run_churn(
     } else {
       insert_ts[2*i+1] = high_resolution_clock::now();
     }
+    // LOOKUP
+    lookup_ts[2*i] = high_resolution_clock::now();
+    for (int j=0; j<nchurn_ops; j++) {
+    #if DEBUG
+          assert(ops[op_index].op == LOOKUP);
+    #endif
+      uint64_t lookup_value;
+      ret = g_lookup(ops[op_index].key, &lookup_value);
+      op_index++;
+    }
+    lookup_ts[2*i+1] = high_resolution_clock::now();
   }
-  write_churn_thrput_by_phase_to_file(delete_ts, insert_ts, output_file);
+  write_churn_thrput_by_phase_to_file(delete_ts, insert_ts, lookup_ts, output_file);
 }
 
 void run_load(std::vector<hm_op> &ops, uint64_t num_initial_load_keys, size_t npoints, std::string output_file) {
