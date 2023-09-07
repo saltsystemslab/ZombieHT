@@ -237,10 +237,9 @@ bool qf_malloc(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits,
                enum qf_hashmode hash, uint32_t seed, float max_load_factor) {
   size_t tombstone_space = 0, nrebuilds = 0;
   float x = 1.0 / (1.0 - max_load_factor);
-#ifdef AMORTIZED_REBUILD
+#if defined AMORTIZED_REBUILD || defined DELETE_AND_PUSH
   tombstone_space = 2 * x;
-#elif defined REBUILD_DEAMORTIZED_GRAVEYARD || defined REBUILD_AT_INSERT \
-    || defined DELETE_AND_PUSH
+#elif defined REBUILD_DEAMORTIZED_GRAVEYARD || defined REBUILD_AT_INSERT
   tombstone_space = 2.5 * x;
 #endif
   return qf_malloc_advance(qf, nslots, key_bits, value_bits, hash, seed,

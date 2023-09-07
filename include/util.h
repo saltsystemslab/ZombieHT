@@ -547,7 +547,8 @@ static inline size_t runends_select(const QF *qf, size_t index, size_t r) {
     bstart = 0;
     block_i++;
   } while (block_i < qf->metadata->nblocks);
-  return qf->metadata->nslots;
+  fprintf(stderr, "runends_select: reached xnslots.\n");
+  return qf->metadata->xnslots;
 }
 
 #if QF_BITS_PER_SLOT == 8 || QF_BITS_PER_SLOT == 16 ||                         \
@@ -742,7 +743,7 @@ static inline int is_empty(const QF *qf, uint64_t slot_index) {
   return offset_lower_bound(qf, slot_index) == 0;
 }
 
-static inline uint64_t find_first_empty_slot(QF *qf, uint64_t from, uint64_t *empty_slot) {
+static inline int find_first_empty_slot(QF *qf, uint64_t from, uint64_t *empty_slot) {
 #ifdef _BLOCKOFFSET_4_NUM_RUNENDS
   size_t block_i = from / QF_SLOTS_PER_BLOCK;
   size_t bstart = from % QF_SLOTS_PER_BLOCK;
@@ -750,6 +751,8 @@ static inline uint64_t find_first_empty_slot(QF *qf, uint64_t from, uint64_t *em
   while (diff > 0)
   {
     size_t next = runends_select(qf, from, diff - 1) + 1;
+    if (next == qf->metadata->xnslots)
+      return QF_NO_SPACE;
     diff = occupieds_cnt(qf, from + 1, next - from);
     from = next;
   }
@@ -784,7 +787,7 @@ static inline uint64_t shift_into_b(const uint64_t a, const uint64_t b,
   const uint64_t b_shifted_mask = BITMASK(bend - bstart) << bstart;
   const uint64_t b_shifted = ((b_shifted_mask & b) << amount) & b_shifted_mask;
   const uint64_t b_mask = ~b_shifted_mask;
-  return a_component | b_shifted | (b & b_mask);
+  return (a_component&b_shifted_mask) | b_shifted | (b & b_mask);
 }
 
 #if QF_BITS_PER_SLOT == 8 || QF_BITS_PER_SLOT == 16 ||                         \

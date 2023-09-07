@@ -86,7 +86,11 @@ int hm_insert(HM *hm, uint64_t key, uint64_t value, uint8_t flags) {
 
 int hm_remove(HM *hm, uint64_t key, uint8_t flags) {
 #ifdef QF_TOMBSTONE
+#if DELETE_AND_PUSH
+  return qft_remove_push(hm, key, flags);
+#else
   return qft_remove(hm, key, flags);
+#endif
 #else
   return qf_remove(hm, key, flags);
 #endif
