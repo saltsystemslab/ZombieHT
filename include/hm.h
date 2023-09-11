@@ -5,6 +5,8 @@
 #include "gqf_int.h"
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string>
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +33,8 @@ int hm_remove(HM *hm, uint64_t key, uint8_t flags);
 int hm_lookup(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
 
 int hm_rebuild(const QF *qf, uint8_t flags);
+
+void hm_dump_metrics(const QF *qf, const std::string &dir);
 
 #ifdef __cplusplus
 }

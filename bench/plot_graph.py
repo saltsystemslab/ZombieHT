@@ -59,6 +59,25 @@ def plot_latency_boxplots(op):
     plt.savefig(os.path.join(dir, "plot_churn_latency_%s.png" % op))
     plt.close()
 
+def plot_distribution(metric):
+    num_variants = len(variants)
+    fig = plt.figure(figsize=(10,6))
+    total_bar_width = 0.8
+    bar_idx = 0
+    for d in variants:
+        metric_file = './%s/%s/%s.txt' % (dir, d, metric)
+        if (not os.path.isfile(metric_file)):
+            continue
+        df = pd.read_csv(metric_file, delim_whitespace=True)
+        columns = df.columns
+        plt.bar(df[columns[0]] - (bar_idx * total_bar_width/num_variants), df[columns[1]], label=d, width=total_bar_width/num_variants) 
+        bar_idx = bar_idx + 1 
+        plt.title("%s Distribution" % (columns[0]))
+    plt.yscale('log')
+    plt.legend()
+    plt.savefig(os.path.join(dir, "plot_%s.png" % metric))
+    plt.close()
+
 plt.figure(figsize=(20,6))
 for d in variants:
     df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
@@ -79,3 +98,6 @@ plot_churn_op_throuput("LOOKUP")
 plot_latency_boxplots("DELETE")
 plot_latency_boxplots("INSERT")
 plot_latency_boxplots("LOOKUP")
+
+plot_distribution('home_slot_dist')
+plot_distribution('tombstone_dist')

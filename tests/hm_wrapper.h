@@ -35,4 +35,9 @@ extern inline int g_destroy()
 }
 
 
+extern inline void g_dump_metrics(const std::string &dir) {
+  hm_dump_metrics(&g_hashmap, dir);
+}
+
+
 #endif

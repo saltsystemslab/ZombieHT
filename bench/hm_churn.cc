@@ -54,6 +54,7 @@ void write_load_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t n
   FILE *fp = fopen(filename.c_str(), "w");
   fprintf(fp, "x_0    y_0\n");
   for (uint64_t exp = 0; exp < 2 * npoints; exp += 2) {
+    fprintf(fp, "%lu", exp);
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(ts[exp+1] - ts[exp]);
     auto nanoseconds = duration.count();
     if (nanoseconds == 0)
@@ -458,6 +459,7 @@ void churn_test(std::vector<hm_op> &ops) {
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
   run_churn(ops, num_initial_load_keys, filename_churn_thrput, filename_churn_latency);
+  g_dump_metrics(dir);
   g_destroy();
 }
 
