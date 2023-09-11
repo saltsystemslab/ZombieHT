@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 import os
 from matplotlib import pyplot as plt
+from scipy.stats import hmean
 
 dir = "bench_run"
 if len(sys.argv) > 1:
@@ -25,6 +26,24 @@ for l in lines[6:]:
 
 def add_caption():
     plt.text(.5, -0.15, f"q_bits={quotient_bits}, r_bits={key_bits - quotient_bits + value_bits}, ChurnOps: {churn_ops}, ChurnCycles: {churn_cycles}", ha='center', transform=plt.gca().transAxes)
+
+def plot_churn_overall_throughput():
+    plt.figure(figsize=(10,6))
+    for d in variants:
+        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+        # Filter out LOOKUP
+        df = df[df['op'] != 'LOOKUP']
+        print(df)
+        df = df.groupby("x_0").agg({"y_0": hmean})
+        plt.plot(df.index, df["y_0"], label=d)
+        plt.xlabel("churn cycle" )
+        plt.ylabel("throughput")
+    plt.legend()
+    plt.title(f"CHURN PHASE (Insert + Delete) Overall Throughput")
+    add_caption()
+    plt.tight_layout()
+    plt.savefig(os.path.join(dir, "plot_churn_throughput.png"))
+    plt.close()
 
 
 def plot_churn_op_throuput(op):
@@ -94,6 +113,7 @@ plt.close()
 plot_churn_op_throuput("DELETE")
 plot_churn_op_throuput("INSERT")
 plot_churn_op_throuput("LOOKUP")
+plot_churn_overall_throughput()
 
 plot_latency_boxplots("DELETE")
 plot_latency_boxplots("INSERT")
