@@ -33,10 +33,9 @@ def plot_churn_overall_throughput():
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         # Filter out LOOKUP
         df = df[df['op'] != 'LOOKUP']
-        print(df)
-        df = df.groupby("x_0").agg({"y_0": hmean})
+        df = df.groupby("churn_cycle").agg({"y_0": hmean})
         plt.plot(df.index, df["y_0"], label=d)
-        plt.xlabel("churn cycle" )
+        plt.xlabel("churn percentage progress" )
         plt.ylabel("throughput")
     plt.legend()
     plt.title(f"CHURN PHASE (Insert + Delete) Overall Throughput")
@@ -52,7 +51,7 @@ def plot_churn_op_throuput(op):
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[ (df["op"]==op) ]
         plt.plot(df["x_0"], df["y_0"], label=d)
-        plt.xlabel("churn cycle" )
+        plt.xlabel("churn percentage progress" )
         plt.ylabel("throughput")
     plt.legend()
     plt.title(f"CHURN PHASE {op} Throughput")
