@@ -50,6 +50,13 @@ uint64_t num_initial_load_keys = 0;
 bool is_silent = true;
 FILE *LOG;
 
+struct HmMetadataMeasure {
+  int churn_cycle;
+  time_point<high_resolution_clock> ts;
+  uint64_t num_occupied;
+  uint64_t num_tombstones;
+};
+
 struct ThrputMeasure {
   int churn_cycle;
   std::string operation;
@@ -93,6 +100,20 @@ void write_churn_thrput_by_phase_to_file(
   uint64_t measure_id = 0;
   for (auto measure: measures) {
       fprintf(fp, "%d %lu %f %f %s\n", measure.churn_cycle, (measure.end_ts- test_begin).count(), (100.0 * measure_id)/measures.size(), measure.thrput(), measure.operation.c_str());
+      measure_id++;
+  }
+  fclose(fp);
+}
+
+void write_churn_metadata_to_file(
+    std::vector<HmMetadataMeasure> &measures,
+    std::string filename) {
+  FILE *fp = fopen(filename.c_str(), "w");
+  time_point<high_resolution_clock> test_begin = measures[0].ts;
+  fprintf(fp, "churn_cycle  ts  occupied tombstones\n");
+  uint64_t measure_id = 0;
+  for (auto measure: measures) {
+      fprintf(fp, "%d %lu %lu %lu\n", measure.churn_cycle, (measure.ts- test_begin).count(), measure.num_occupied,  measure.num_tombstones);
       measure_id++;
   }
   fclose(fp);
@@ -388,9 +409,11 @@ void run_churn(
 				std::vector<hm_op> &ops, 
         uint64_t start, 
         std::string thrput_output_file,
-        std::string latency_output_file) {
+        std::string latency_output_file,
+        std::string metadata_output_file) {
   vector<ThrputMeasure> thrput_measures;
   vector<LatencyMeasure> latency_measures;
+  vector<HmMetadataMeasure> metadata_measures;
   uint64_t throughput_ops_per_bucket = nchurn_ops / churn_thrput_resolution;
   int status = 0;
   int churn_start_op = start;
@@ -407,9 +430,22 @@ void run_churn(
     status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
     if (status) break;
     churn_start_op += nchurn_ops;
+
+    metadata_measures.push_back({
+      i,
+      high_resolution_clock::now(),
+      g_hashmap.metadata->nelts,
+#ifdef QF_TOMBSTONE
+      g_hashmap.metadata->noccupied_slots - g_hashmap.metadata->nelts
+#else
+      0
+#endif
+    });
+    
   }
   write_churn_thrput_by_phase_to_file(thrput_measures, thrput_output_file);
   write_churn_latency_by_phase_to_file(latency_measures, latency_output_file);
+  write_churn_metadata_to_file(metadata_measures, metadata_output_file);
 }
 
 void run_load(std::vector<hm_op> &ops, uint64_t num_initial_load_keys, size_t npoints, std::string output_file) {
@@ -455,16 +491,18 @@ void churn_test(std::vector<hm_op> &ops) {
   std::string load_op = "load.txt";
   std::string churn_thrput = "churn_thrput.txt";
   std::string churn_latency = "churn_latency.txt";
+  std::string churn_metadata  = "churn_metadata.txt";
   std::string filename_load = dir + load_op;
   std::string filename_churn_thrput = dir +  churn_thrput;
   std::string filename_churn_latency = dir +  churn_latency;
+  std::string filename_churn_metadata  = dir +  churn_metadata;
   float max_load_factor = initial_load_factor / 100.0;
   printf("max_load_factor: %f\n", max_load_factor);
   g_init(num_slots, key_bits, value_bits, max_load_factor);
   // LOAD PHASE.
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
-  run_churn(ops, num_initial_load_keys, filename_churn_thrput, filename_churn_latency);
+  run_churn(ops, num_initial_load_keys, filename_churn_thrput, filename_churn_latency, filename_churn_metadata);
   g_dump_metrics(dir);
   g_destroy();
 }

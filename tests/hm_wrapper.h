@@ -34,10 +34,12 @@ extern inline int g_destroy()
 	return hm_free(&g_hashmap);
 }
 
-
 extern inline void g_dump_metrics(const std::string &dir) {
   hm_dump_metrics(&g_hashmap, dir);
 }
 
+extern inline int g_collect_metadata_stats() {
+  return g_hashmap.metadata->nslots;
+}
 
 #endif

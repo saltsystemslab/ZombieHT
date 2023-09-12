@@ -167,7 +167,7 @@ void hm_dump_metrics(const QF *qf, const std::string &dir) {
     fprintf(fd, "%ld %ld\n", it.first, it.second);
   }
   fclose(fd);
-  #endif
+#endif
 
 }
  

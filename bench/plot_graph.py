@@ -44,6 +44,33 @@ def plot_churn_overall_throughput():
     plt.savefig(os.path.join(dir, "plot_churn_throughput.png"))
     plt.close()
 
+def plot_tombstone():
+    plt.figure(figsize=(10,6))
+    for d in variants:
+        df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), delim_whitespace=True)
+        plt.plot(df["churn_cycle"], df["tombstones"], label=d)
+        plt.xlabel("churn cycle" )
+        plt.ylabel("tombstone_count")
+    plt.legend()
+    plt.title(f"CHURN Tombstone count")
+    add_caption()
+    plt.tight_layout()
+    plt.savefig(os.path.join(dir, "plot_churn_tombstones.png"))
+    plt.close()
+
+def plot_tombstone_ratio():
+    plt.figure(figsize=(10,6))
+    for d in variants:
+        df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), delim_whitespace=True)
+        plt.plot(df["churn_cycle"], df["tombstones"]/(df["tombstones"] + df["occupied"]), label=d)
+        plt.xlabel("churn cycle" )
+        plt.ylabel("tombstone_count")
+    plt.legend()
+    plt.title(f"CHURN Tombstone to Occupied Ratio")
+    add_caption()
+    plt.tight_layout()
+    plt.savefig(os.path.join(dir, "plot_churn_tombstones_ratio.png"))
+    plt.close()
 
 def plot_churn_op_throuput(op):
     plt.figure(figsize=(10,6))
@@ -113,6 +140,8 @@ plot_churn_op_throuput("DELETE")
 plot_churn_op_throuput("INSERT")
 plot_churn_op_throuput("LOOKUP")
 plot_churn_overall_throughput()
+plot_tombstone()
+plot_tombstone_ratio()
 
 plot_latency_boxplots("DELETE")
 plot_latency_boxplots("INSERT")
