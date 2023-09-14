@@ -242,6 +242,9 @@ bool qf_malloc(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits,
 #elif defined REBUILD_DEAMORTIZED_GRAVEYARD || defined REBUILD_AT_INSERT
   tombstone_space = 2.5 * x;
 #endif
+#ifdef PTS
+  tombstone_space = PTS * x;
+#endif
   return qf_malloc_advance(qf, nslots, key_bits, value_bits, hash, seed,
                            tombstone_space, nrebuilds);
 }

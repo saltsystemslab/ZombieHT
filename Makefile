@@ -36,6 +36,10 @@ ifdef VAR
   endif
 endif
 
+ifdef PTS
+	FEATURE_FLAGS:=$(FEATURE_FLAGS) -D PTS=$(PTS)
+endif
+
 ifdef D
 	DEBUG=-g -DDEBUG=1
 	OPT=
@@ -57,7 +61,7 @@ else
 endif
 
 ifdef P
-	PROFILE=-pg -no-pie # for bug in gprof.
+	PROFILE=-pg -g -no-pie# for bug in gprof.
 endif
 
 LOC_INCLUDE=include
