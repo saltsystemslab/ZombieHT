@@ -26,16 +26,18 @@ elseif (VARIANT STREQUAL "GZHM_DELETE")
   add_compile_definitions(-DUSE_GZHM_DELETE -DQF_TOMBSTONE -DDELETE_AND_PUSH)
 elseif (VARIANT STREQUAL "ABSL")
   add_compile_definitions(-DUSE_ABSL)
+elseif (VARIANT STREQUAL "ICEBERG")
+  add_compile_definitions(-DUSE_ICEBERG)
 else()
   message("Unkonwn Variant")
 endif()
-
 
 set(CMAKE_CXX_STANDARD 23)
 set_source_files_properties(src/gqf.c PROPERTIES LANGUAGE CXX )
 set_source_files_properties(src/hm.c PROPERTIES LANGUAGE CXX )
 set_source_files_properties(src/hashutil.c PROPERTIES LANGUAGE CXX )
 
+add_subdirectory(iceberghashtable)
 include_directories(
   include/
   tests/
@@ -46,11 +48,12 @@ add_library(gqf src/gqf.c)
 add_library(hm src/hm.c)
 add_library(pc src/partitioned_counter.c)
 add_executable(hm_churn bench/hm_churn.cc)
-target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil)
 
 if (VARIANT STREQUAL "ABSL")
   add_subdirectory(abseil-cpp)
   target_link_libraries(hm_churn ssl crypto absl::flat_hash_map)
+elseif(VARIANT STREQUAL "ICEBERG")
+  target_link_libraries(hm_churn iceberg ssl crypto)
 else()
   target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil)
 endif()

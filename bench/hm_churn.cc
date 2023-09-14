@@ -432,6 +432,7 @@ void run_churn(
     churn_start_op += nchurn_ops;
 
   #ifndef USE_ABSL
+  #ifndef USE_ICEBERG
     metadata_measures.push_back({
       i,
       high_resolution_clock::now(),
@@ -442,6 +443,7 @@ void run_churn(
       0
 #endif
     });
+    #endif
     #endif
     
   }

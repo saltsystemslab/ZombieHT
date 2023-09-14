@@ -1,5 +1,6 @@
 #run_args="-k 38 -q 22 -v 0 -c 100 -l 10000 -i 95 -s 1 -t 8"
-run_args="-k 43 -q 27 -v 0 -c 500 -l 400000 -i 95 -s 1 -t 4"
+run_args="-k 43 -q 27 -v 0 -c 100 -l 400000 -i 95 -s 1"
+#run_args="-k 43 -q 27 -v 0 -c 500 -l 400000 -i 95 -s 1 -t 4"
 
 if [ -z "$1" ]; then
     out_dir="bench_run"

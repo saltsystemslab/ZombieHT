@@ -29,14 +29,15 @@ def add_caption():
 
 def plot_churn_overall_throughput():
     plt.figure(figsize=(10,6))
+    overall_thrput = ""
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         # Filter out LOOKUP
         df = df[df['op'] != 'LOOKUP']
-        df = df.groupby("churn_cycle").agg({"y_0": hmean})
-        plt.plot(df.index, df["y_0"], label=d)
-        plt.xlabel("churn percentage progress" )
-        plt.ylabel("throughput")
+        df = df.groupby("churn_cycle").agg({"y_0": hmean}) * 1000.0
+        plt.plot(df.index, df["y_0"], label="%s: %.3f" % (d, hmean(df["y_0"])) )
+        plt.xlabel("churn cycle" )
+        plt.ylabel("throughput (ops/microsec)")
     plt.legend()
     plt.title(f"CHURN PHASE (Insert + Delete) Overall Throughput")
     add_caption()
@@ -77,9 +78,9 @@ def plot_churn_op_throuput(op):
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[ (df["op"]==op) ]
-        plt.plot(df["x_0"], df["y_0"], label=d)
+        plt.plot(df["x_0"], df["y_0"] * 1000.0, label="%s: %.3f" % (d, hmean(df["y_0"] * 1000)))
         plt.xlabel("churn percentage progress" )
-        plt.ylabel("throughput")
+        plt.ylabel("throughput (ops/usec)")
     plt.legend()
     plt.title(f"CHURN PHASE {op} Throughput")
     add_caption()
