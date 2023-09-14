@@ -431,6 +431,7 @@ void run_churn(
     if (status) break;
     churn_start_op += nchurn_ops;
 
+  #ifndef USE_ABSL
     metadata_measures.push_back({
       i,
       high_resolution_clock::now(),
@@ -441,6 +442,7 @@ void run_churn(
       0
 #endif
     });
+    #endif
     
   }
   write_churn_thrput_by_phase_to_file(thrput_measures, thrput_output_file);
