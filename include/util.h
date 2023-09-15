@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 #include "hashutil.h"
 
 /******************************************************************
@@ -860,7 +861,7 @@ static inline void qf_dump_block_long(const QF *qf, uint64_t i) {
   for (j = 0; j < QF_SLOTS_PER_BLOCK; j++)
     printf("%02lx ", get_block(qf, i)->slots[j]);
 #else
-printf("BL O R T V\n");
+  printf("BL O R T V\n");
   for (j = 0; j < QF_SLOTS_PER_BLOCK;  j++) {
     printf("%02lx", j); // , get_block(qf, i)->slots[j]);
     printf(" %d",
@@ -879,8 +880,8 @@ printf("BL O R T V\n");
     }
     printf("\n");
   }
-}
 #endif
+}
 
 static inline void qf_dump_block(const QF *qf, uint64_t i) {
   uint64_t j;

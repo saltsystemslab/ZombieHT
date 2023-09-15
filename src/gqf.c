@@ -94,7 +94,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
 
   bits_per_slot = key_remainder_bits + value_bits;
   assert(QF_BITS_PER_SLOT == 0 ||
-         QF_BITS_PER_SLOT == qf->metadata->bits_per_slot);
+         QF_BITS_PER_SLOT == bits_per_slot);
   assert(bits_per_slot > 1);
 #if QF_BITS_PER_SLOT == 8 || QF_BITS_PER_SLOT == 16 ||                         \
     QF_BITS_PER_SLOT == 32 || QF_BITS_PER_SLOT == 64
@@ -142,12 +142,10 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
 
 #ifdef QF_TOMBSTONE
   // Set all tombstones
-  char *b = (char *)(qf->blocks);
-  size_t block_size =
-      sizeof(qfblock) + QF_SLOTS_PER_BLOCK * qf->metadata->bits_per_slot / 8;
+  qfblock *b;
   for (uint64_t i = 0; i < qf->metadata->nblocks; i++) {
-    ((qfblock *)b)->tombstones[0] = 0xffffffffffffffffULL;
-    b += block_size;
+    b = get_block(qf, i);
+    b->tombstones[0] = 0xffffffffffffffffULL;
   }
 #endif
 

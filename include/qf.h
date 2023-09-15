@@ -80,7 +80,7 @@ static inline int qf_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
       uint64_t empty_slot_index;
       int ret = find_first_empty_slot(qf, runend_index + 1, &empty_slot_index);
       if (ret < 0) return ret;
-            shift_remainders(qf, insert_index, empty_slot_index);
+      shift_remainders(qf, insert_index, empty_slot_index);
       set_slot(qf, insert_index, new_value);
       ret_distance = insert_index - hash_bucket_index;
 
