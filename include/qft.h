@@ -205,6 +205,20 @@ int qft_remove(HM *qf, uint64_t key, uint8_t flags) {
   return current_index - runstart_index + 1;
 }
 
+/* Assume tombstone is in a run, push it to the end of the run.
+ * Return the index of the new tombstone (end of the run).
+ */
+size_t _push_tombstone_to_run_end(HM *qf, size_t tombstone_index) {
+  RESET_T(qf, tombstone_index);
+  while (!is_runend(qf, tombstone_index)) {
+    // push 1 slot at a time.
+    set_slot(qf, tombstone_index, get_slot(qf, tombstone_index+1));
+    tombstone_index++;
+  }
+  SET_T(qf, tombstone_index);
+  return tombstone_index;
+}
+
 int qft_remove_push(HM *qf, uint64_t key, uint8_t flags) {
   uint64_t hash = key2hash(qf, key, flags);
   uint64_t hash_remainder, hash_bucket_index;
@@ -229,14 +243,7 @@ int qft_remove_push(HM *qf, uint64_t key, uint8_t flags) {
   SET_T(qf, current_index);
 	modify_metadata(&qf->runtimedata->pc_nelts, -1);
 
-  // push the tombstone to the end of the run
-  while (!is_runend(qf, current_index)) {
-    // push 1 slot at a time.
-    set_slot(qf, current_index, get_slot(qf, current_index+1));
-    RESET_T(qf, current_index);
-    SET_T(qf, current_index+1);
-    current_index++;
-  }
+  current_index = _push_tombstone_to_run_end(qf, current_index);
   RESET_R(qf, current_index);
   if (current_index == runstart_index)
     // removing the only element in the run
@@ -270,14 +277,7 @@ int qft_remove_push(HM *qf, uint64_t key, uint8_t flags) {
         break;
       }
     }
-    // push the tombstone out of the run
-    while (!is_runend(qf, current_index)) {
-      // push 1 slot at a time.
-      set_slot(qf, current_index, get_slot(qf, current_index+1));
-      RESET_T(qf, current_index);
-      SET_T(qf, current_index+1);
-      current_index++;
-    }
+    current_index = _push_tombstone_to_run_end(qf, current_index);
     RESET_R(qf, current_index);
     SET_R(qf, current_index-1);
     _recalculate_block_offsets(qf, curr_run, current_index);

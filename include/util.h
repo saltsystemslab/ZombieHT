@@ -804,9 +804,9 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
   uint64_t start_offset = start_index % QF_SLOTS_PER_BLOCK;
   uint64_t empty_block = empty_index / QF_SLOTS_PER_BLOCK;
   uint64_t empty_offset = empty_index % QF_SLOTS_PER_BLOCK;
-
+#ifdef DEBUG
   assert(start_index <= empty_index && empty_index < qf->metadata->xnslots);
-
+#endif
   while (start_block < empty_block) {
     memmove(&get_block(qf, empty_block)->slots[1],
             &get_block(qf, empty_block)->slots[0],
@@ -821,7 +821,6 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
           &get_block(qf, empty_block)->slots[start_offset],
           (empty_offset - start_offset) * sizeof(qf->blocks[0].slots[0]));
 }
-
 #else
 
 #define REMAINDER_WORD(qf, i)                                                  \
