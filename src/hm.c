@@ -1,5 +1,8 @@
 #include "gqf.h"
 #include "hm.h"
+#include <algorithm>
+#include <string>
+#include <unordered_map>
 
 #ifdef QF_TOMBSTONE
 #include "qft.h"
@@ -104,3 +107,67 @@ int hm_lookup(const QF *hm, uint64_t key, uint64_t *value, uint8_t flags) {
 #endif
 }
 
+void hm_dump_metrics(const QF *qf, const std::string &dir) {
+  // For each quotient print distances from home slot
+  // For each cluster, print tombstone distances - across all blocks.
+  std::unordered_map<uint64_t, uint64_t> hsd_count;
+  std::unordered_map<uint64_t, uint64_t> td_count;
+  uint64_t quotient = 0;
+  uint64_t slot = 0;
+  uint64_t cluster_len = 0;
+  uint64_t num_free_slots = 0;
+  uint64_t prev_tombstone_slot_idx = 0;
+  while (quotient < qf->metadata->nslots) {
+    slot = std::max(quotient, slot);
+
+    if (!is_occupied(qf, quotient) && slot == quotient) {
+      num_free_slots++;
+    }
+
+    if (slot == quotient && cluster_len > 0) {
+      cluster_len = 0;
+      #ifdef QF_TOMBSTONE
+      uint64_t td_dist = slot - prev_tombstone_slot_idx;
+      td_count[td_dist]++;
+      prev_tombstone_slot_idx = slot;
+      #endif
+    }
+
+    // Search for runend. 
+    while (is_occupied(qf, quotient) && !is_runend(qf, slot)) {
+      #ifdef QF_TOMBSTONE
+      if (is_tombstone(qf, slot)) {
+        uint64_t td_dist = slot - prev_tombstone_slot_idx;
+        td_count[td_dist]++;
+        prev_tombstone_slot_idx = slot;
+      }
+      #endif
+      slot++;
+      cluster_len++;
+    }
+    uint64_t home_slot_distance = slot-quotient;
+    hsd_count[home_slot_distance]++;
+    quotient++;
+  }
+
+  std::string home_slot_distance = dir + "/home_slot_dist.txt";
+  FILE *fd;
+  fd = fopen(home_slot_distance.c_str(), "w");
+  fprintf(fd, "HomeSlotDistance Count\n");
+  for (auto it: hsd_count) {
+    fprintf(fd, "%ld %ld\n", it.first, it.second);
+  }
+  fclose(fd);
+
+  #if QF_TOMBSTONE
+  std::string tombstone_distance = dir + "/tombstone_dist.txt";
+  fd = fopen(tombstone_distance.c_str(), "w");
+  fprintf(fd, "TombstoneDistance Count\n");
+  for (auto it: td_count) {
+    fprintf(fd, "%ld %ld\n", it.first, it.second);
+  }
+  fclose(fd);
+#endif
+
+}
+ 

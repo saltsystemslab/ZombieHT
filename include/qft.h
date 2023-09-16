@@ -147,7 +147,6 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     qf_unlock(qf, hash_bucket_index, /*small*/ true);
   }
 
-
   return ret_distance;
 }
 
