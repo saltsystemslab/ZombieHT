@@ -35,7 +35,9 @@ static inline size_t find_next_tombstone(QF *qf, size_t from) {
  */
 static inline void shift_runends_tombstones(QF *qf, int64_t first,
                                             uint64_t last, uint64_t distance) {
+#ifdef DEBUG
   assert(last < qf->metadata->xnslots);
+#endif
   assert(distance < 64);
   uint64_t first_word = first / 64;
   uint64_t bstart = first % 64;

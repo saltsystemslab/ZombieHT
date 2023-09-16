@@ -2,6 +2,12 @@ TARGETS=test test_threadsafe test_pc bm hm_churn test_runner
 
 FEATURE_FLAGS= 
 
+ifdef QF_BITS_PER_SLOT
+	FEATURE_FLAGS:=$(FEATURE_FLAGS) -D QF_BITS_PER_SLOT=$(QF_BITS_PER_SLOT)
+else
+	FEATURE_FLAGS:=$(FEATURE_FLAGS) -D QF_BITS_PER_SLOT=0
+endif
+
 ifdef BLOCKOFFSET
   ifeq ($(BLOCKOFFSET), NEW)
     FEATURE_FLAGS:=$(FEATURE_FLAGS) -D_BLOCKOFFSET_4_NUM_RUNENDS
@@ -36,6 +42,10 @@ ifdef VAR
   endif
 endif
 
+ifdef PTS
+	FEATURE_FLAGS:=$(FEATURE_FLAGS) -D PTS=$(PTS)
+endif
+
 ifdef D
 	DEBUG=-g -DDEBUG=1
 	OPT=
@@ -57,7 +67,7 @@ else
 endif
 
 ifdef P
-	PROFILE=-pg -no-pie # for bug in gprof.
+	PROFILE=-pg -g -no-pie# for bug in gprof.
 endif
 
 LOC_INCLUDE=include

@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 #include "hashutil.h"
 
 /******************************************************************
@@ -555,13 +556,17 @@ static inline size_t runends_select(const QF *qf, size_t index, size_t r) {
     QF_BITS_PER_SLOT == 32 || QF_BITS_PER_SLOT == 64
 
 static inline uint64_t get_slot(const QF *qf, uint64_t index) {
+#ifdef DEBUG
   assert(index < qf->metadata->xnslots);
+#endif
   return get_block(qf, index / QF_SLOTS_PER_BLOCK)
       ->slots[index % QF_SLOTS_PER_BLOCK];
 }
 
 static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
+#ifdef DEBUG
   assert(index < qf->metadata->xnslots);
+#endif
   get_block(qf, index / QF_SLOTS_PER_BLOCK)->slots[index % QF_SLOTS_PER_BLOCK] =
       value & BITMASK(qf->metadata->bits_per_slot);
 }
@@ -573,7 +578,7 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
 static inline uint64_t get_slot(const QF *qf, uint64_t index) {
   /* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
    * to generate buggy code.  :/  */
-  assert(index < qf->metadata->xnslots);
+  // assert(index < qf->metadata->xnslots);
   uint64_t *p =
       (uint64_t *)&get_block(qf, index / QF_SLOTS_PER_BLOCK)
           ->slots[(index % QF_SLOTS_PER_BLOCK) * QF_BITS_PER_SLOT / 8];
@@ -585,7 +590,7 @@ static inline uint64_t get_slot(const QF *qf, uint64_t index) {
 static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
   /* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
    * to generate buggy code.  :/  */
-  assert(index < qf->metadata->xnslots);
+  // assert(index < qf->metadata->xnslots);
   uint64_t *p =
       (uint64_t *)&get_block(qf, index / QF_SLOTS_PER_BLOCK)
           ->slots[(index % QF_SLOTS_PER_BLOCK) * QF_BITS_PER_SLOT / 8];
@@ -605,7 +610,7 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
 /* Little-endian code ....  Big-endian is TODO */
 
 static inline uint64_t get_slot(const QF *qf, uint64_t index) {
-  assert(index < qf->metadata->xnslots);
+  // assert(index < qf->metadata->xnslots);
   /* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
    * to generate buggy code.  :/  */
   uint64_t *p = (uint64_t *)&get_block(qf, index / QF_SLOTS_PER_BLOCK)
@@ -622,7 +627,7 @@ static inline uint64_t get_slot_remainder(const QF *qf, uint64_t index) {
 }
 
 static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
-  assert(index < qf->metadata->xnslots);
+  // assert(index < qf->metadata->xnslots);
   /* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
    * to generate buggy code.  :/  */
   uint64_t *p = (uint64_t *)&get_block(qf, index / QF_SLOTS_PER_BLOCK)
@@ -799,9 +804,9 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
   uint64_t start_offset = start_index % QF_SLOTS_PER_BLOCK;
   uint64_t empty_block = empty_index / QF_SLOTS_PER_BLOCK;
   uint64_t empty_offset = empty_index % QF_SLOTS_PER_BLOCK;
-
+#ifdef DEBUG
   assert(start_index <= empty_index && empty_index < qf->metadata->xnslots);
-
+#endif
   while (start_block < empty_block) {
     memmove(&get_block(qf, empty_block)->slots[1],
             &get_block(qf, empty_block)->slots[0],
@@ -816,7 +821,6 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
           &get_block(qf, empty_block)->slots[start_offset],
           (empty_offset - start_offset) * sizeof(qf->blocks[0].slots[0]));
 }
-
 #else
 
 #define REMAINDER_WORD(qf, i)                                                  \
@@ -856,7 +860,7 @@ static inline void qf_dump_block_long(const QF *qf, uint64_t i) {
   for (j = 0; j < QF_SLOTS_PER_BLOCK; j++)
     printf("%02lx ", get_block(qf, i)->slots[j]);
 #else
-printf("BL O R T V\n");
+  printf("BL O R T V\n");
   for (j = 0; j < QF_SLOTS_PER_BLOCK;  j++) {
     printf("%02lx", j); // , get_block(qf, i)->slots[j]);
     printf(" %d",
@@ -875,8 +879,8 @@ printf("BL O R T V\n");
     }
     printf("\n");
   }
-}
 #endif
+}
 
 static inline void qf_dump_block(const QF *qf, uint64_t i) {
   uint64_t j;
