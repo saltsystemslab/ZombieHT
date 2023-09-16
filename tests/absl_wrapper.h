@@ -9,7 +9,9 @@
 absl::flat_hash_map<uint64_t, uint64_t> g_map;
 
 extern inline int g_init(uint64_t nslots, uint64_t key_size, uint64_t value_size, float max_load_factor) {
-	g_map.max_load_factor(max_load_factor);
+	// Hack to make abseil reserve enough memory for nslots.
+	// nslots is a power of 2, and abseil tries to allocate twice that. 
+	g_map.reserve(nslots/2);
 	return 0;
 }
 
@@ -35,6 +37,7 @@ extern inline int g_destroy()
 }
 
 extern inline void g_dump_metrics(const std::string &dir) {
+	printf("%lu %lu %f\n", g_map.size(), g_map.capacity(), g_map.load_factor());
 }
 
 extern inline int g_collect_metadata_stats() {
