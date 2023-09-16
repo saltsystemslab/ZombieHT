@@ -1,6 +1,6 @@
-#run_args="-k 38 -q 22 -v 0 -c 100 -l 10000 -i 95 -s 1 -t 8"
-run_args="-k 43 -q 27 -v 0 -c 100 -l 400000 -i 95 -s 1"
-#run_args="-k 43 -q 27 -v 0 -c 500 -l 400000 -i 95 -s 1 -t 4"
+run_args="-k 38 -q 22 -v 0 -c 6 -l 10000 -i 95 -s 1 -t 8"
+# run_args="-k 43 -q 27 -v 0 -c 100 -l 400000 -i 95 -s 1"
+# run_args="-k 43 -q 27 -v 0 -c 200 -l 400000 -i 95 -s 1 -t 4"
 
 if [ -z "$1" ]; then
     out_dir="bench_run"
@@ -22,7 +22,7 @@ done
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p $out_dir/$VARIANT
   echo ./build/$VARIANT/hm_churn $run_args -d $out_dir/$VARIANT
-  ./build/$VARIANT/hm_churn $run_args -d $out_dir/$VARIANT/
+  numactl -N 0 -m 0 ./build/$VARIANT/hm_churn $run_args -d $out_dir/$VARIANT/
 done
 
 python3 ./bench/plot_graph.py $out_dir

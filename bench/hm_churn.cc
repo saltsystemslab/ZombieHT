@@ -109,6 +109,10 @@ void write_churn_metadata_to_file(
     std::vector<HmMetadataMeasure> &measures,
     std::string filename) {
   FILE *fp = fopen(filename.c_str(), "w");
+  if (measures.size() == 0) {
+    fclose(fp);
+    return;
+  }
   time_point<high_resolution_clock> test_begin = measures[0].ts;
   fprintf(fp, "churn_cycle  ts  occupied tombstones\n");
   uint64_t measure_id = 0;
@@ -430,6 +434,15 @@ void run_churn(
     status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
     if (status) break;
     churn_start_op += nchurn_ops;
+
+  #ifdef USE_ABSL
+    metadata_measures.push_back({
+      i,
+      high_resolution_clock::now(),
+      g_map.size(),
+      g_map.bucket_count() - g_map.size()
+    });
+  #endif
 
   #ifndef USE_ABSL
   #ifndef USE_ICEBERG

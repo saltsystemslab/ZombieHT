@@ -22,3 +22,4 @@ test_threadsafe
 *.png
 *.data
 build/
+bench_run/*
