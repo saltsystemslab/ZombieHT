@@ -2,8 +2,12 @@ cmake_minimum_required (VERSION 3.1...3.27)
 project(ZombieHashTable)
 
 option(NEW_BLOCKOFFSET "Use new blockoffset" ON)
-set(VARIANT "RHM" CACHE STRING "")
+set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
+set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
 
+if (NOT PTS STREQUAL "0.0")
+  add_compile_definitions(-DPTS=${PTS})
+endif()
 if (NEW_BLOCKOFFSET)
   add_compile_definitions(-D_BLOCKOFFSET_4_NUM_RUNENDS)
 endif()
