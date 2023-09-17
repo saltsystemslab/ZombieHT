@@ -38,7 +38,7 @@ External Variants we compare against.
 Run the below command and see plots in `./bench_result`
 
 ```bash
-./run_cmake_churn.sh
+./bench/run_cmake_churn.sh
 ```
 
 #### Building and Running
