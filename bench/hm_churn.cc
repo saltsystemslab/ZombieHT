@@ -138,7 +138,7 @@ void usage(char *name) {
   printf(
       "%s [OPTIONS]\n"
       "Options are:\n"
-      "  -d dir 							 [ Output Directory. Default bench_run ]\n"
+      "  -d dir                [ Output Directory. Default bench_run ]\n"
       "  -k keybits            [ Size of key in bits. ]\n"
       "  -q quotient_bits      [ Size of quotient in bits. ]\n"
       "  -v value_keybits      [ Size of value in bits. ]\n"
@@ -147,11 +147,11 @@ void usage(char *name) {
       "  -l churn length       [ Number of insert, delete operations per churn "
       "cycle ]\n"
       "  -r record             [ Whether to record. If 1 will record to -f. Use test_runner to replay or check test case.]\n"
-      "  -f record/replay file [ File to record to. Default test_case.txt ]"
-      "  -p npoints            [ number of points on the graph for load phase.  Default 20] "
-      "  -t throughput buckets [number of points to collect per churn phase op.  Default 4] "
-      "  -g latency sample rate[ churn op latency sampling rate.  Default 1000]"
-      "  -s silent             [ Default 1. Use 0 for verbose mode"
+      "  -f record/replay file [ File to record to. Default test_case.txt ]\n"
+      "  -p npoints            [ number of points on the graph for load phase.  Default 20]\n"
+      "  -t throughput buckets [number of points to collect per churn phase op.  Default 4]\n"
+      "  -g latency sample rate[ churn op latency sampling rate.  Default 1000]\n"
+      "  -s silent             [ Default 1. Use 0 for verbose mode\n"
       "]\n",
       name);
 }
