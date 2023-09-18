@@ -70,7 +70,6 @@ static inline void shift_runends_tombstones(QF *qf, int64_t first,
 }
 
 
-
 static inline bool is_empty_ts(const QF *qf, uint64_t slot_index) {
   // if (!is_tombstone(qf, slot_index)) return false;
   return offset_lower_bound(qf, slot_index) == 0;
@@ -332,6 +331,11 @@ static void reset_rebuild_cd(HM *hm) {
 #endif
 }
 
+/* Given quotient and remainder, find the range of the run [start, end) and the
+ * position of the slot if it exits. If it doesn't exist, the position is where
+ * it should be inserted.
+ * Return 1 if found, 0 otherwise.
+ */
 static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
                 uint64_t *const index, uint64_t *const run_start_index,
                 uint64_t *const run_end_index) {
@@ -351,8 +355,11 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
       curr_remainder = get_slot(qf, *index) >> qf->metadata->value_bits;
       if (remainder == curr_remainder)
         return 1;
+#ifdef UNORDERED
+#else
       if (remainder < curr_remainder)
         return 0;
+#endif
     }
     *index += 1;
   } while (*index < *run_end_index);
