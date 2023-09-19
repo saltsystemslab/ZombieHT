@@ -109,23 +109,43 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     if (ret == 1)
       return QF_KEY_EXISTS;
     uint64_t available_slot_index = find_next_tombstone(qf, insert_index);
+    uint64_t run_shift_end = available_slot_index;
     if (available_slot_index >= qf->metadata->xnslots)
       return QF_NO_SPACE;
     if (is_empty_ts(qf, available_slot_index))
       modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
+  #ifdef UNORDERED
+    //swap the tombstone with runend until you get to this run.
+    uint64_t prev_runend = available_slot_index;
+    while(!is_runend(qf, prev_runend)) prev_runend--;
+    while (true) {
+      uint64_t runstart_value = get_slot(qf, prev_runend+1);
+      uint64_t available_slot_value = get_slot(qf, available_slot_index);
+      set_slot(qf, available_slot_index, runstart_value);
+      set_slot(qf, prev_runend+1, available_slot_value);
+      available_slot_index = prev_runend+1;
+      if (available_slot_index == insert_index) {
+        break;
+      }
+      prev_runend--;
+      while(!is_runend(qf, prev_runend)) prev_runend--;
+      printf("%lu %lu %lu\n", insert_index, prev_runend, available_slot_index);
+    }
+  #else
     // shift
     shift_remainders(qf, insert_index, available_slot_index);
+  #endif
     // Fix metadata
     if (!is_occupied(qf, hash_bucket_index)) {
       // If it is a new run, we need a new runend
-      shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
+      shift_runends_tombstones(qf, insert_index, run_shift_end, 1);
       SET_R(qf, insert_index);
     } else if (insert_index >= runend_index) {
       // insert to the end of the run
-      shift_runends_tombstones(qf, insert_index - 1, available_slot_index, 1);
+      shift_runends_tombstones(qf, insert_index - 1, run_shift_end, 1);
     } else {
       // insert to the begin or middle
-      shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
+      shift_runends_tombstones(qf, insert_index, run_shift_end, 1);
     }
     RESET_T(qf, available_slot_index);
     set_slot(qf, insert_index, new_value);
@@ -135,7 +155,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     // else use a tombstone
     ret_distance = available_slot_index - hash_bucket_index + 1;
 #ifdef _BLOCKOFFSET_4_NUM_RUNENDS
-    _recalculate_block_offsets(qf, hash_bucket_index, available_slot_index);
+    _recalculate_block_offsets(qf, hash_bucket_index, run_shift_end);
 #else
     _recalculate_block_offsets(qf, hash_bucket_index);
 #endif
