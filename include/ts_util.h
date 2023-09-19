@@ -25,15 +25,13 @@ static inline size_t find_prev_runend(QF *qf, size_t slot) {
   block_runend_word = (block_runend_word & BITMASK(slot_offset)); 
   uint64_t mask = BITMASK(slot);
   size_t prev = bitscanreverse(block_runend_word);
-  while (prev == MAX_VALUE(64)) {
-    assert(block_index > 0);
-    if (block_index == 0) {
-      return -1;
-    }
-    block_index--;
-    block_runend_word = get_block(qf, block_index)->runends[0];
-    prev = bitscanreverse(block_runend_word);
+  if (prev != BITMASK(64)) {
+    return block_index * QF_SLOTS_PER_BLOCK + prev;
   }
+  do {
+    block_runend_word = get_block(qf, --block_index)->runends[0];
+  } while (block_runend_word == 0);
+  prev = bitscanreverse(block_runend_word);
   return block_index * QF_SLOTS_PER_BLOCK + prev;
 }
 
