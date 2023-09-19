@@ -3,6 +3,7 @@ project(ZombieHashTable)
 
 option(NEW_BLOCKOFFSET "Use new blockoffset" ON)
 option(UNORDERED "Whether quotients are ordered inside a run" OFF)
+option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered." OFF)
 set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
 set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
 
@@ -15,6 +16,10 @@ endif()
 
 if (UNORDERED)
   add_compile_definitions(-DUNORDERED)
+endif()
+
+if (SWAP_TOMBSTONE)
+  add_compile_definitions(-DSWAP_TOMBSTONE)
 endif()
 
 if(VARIANT STREQUAL "RHM")

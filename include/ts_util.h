@@ -395,7 +395,7 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
 #ifdef UNORDERED
   // Check if there is a tombstone in the run you can use.
   if (tombstone_in_run != -1) {
-    //*index = tombstone_in_run;
+    *index = tombstone_in_run;
   }
 #endif
   return 0;
