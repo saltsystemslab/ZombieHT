@@ -468,6 +468,12 @@ static inline uint64_t bitselectv(const uint64_t val, int ignore, int rank) {
   return bitselect(val & ~BITMASK(ignore % 64), rank);
 }
 
+static inline uint64_t bitselect_big(uint64_t val) {
+  uint64_t i;
+  asm("lzcnt %[bit], %[index]" : [index] "=r"(i) : [bit] "g"(val) : "cc");
+  return i;
+}
+
 static inline int is_runend(const QF *qf, uint64_t index) {
   return (METADATA_WORD(qf, runends, index) >>
           ((index % QF_SLOTS_PER_BLOCK) % 64)) &
@@ -622,10 +628,6 @@ static inline uint64_t get_slot(const QF *qf, uint64_t index) {
                     BITMASK(qf->metadata->bits_per_slot));
 }
 
-static inline uint64_t get_slot_remainder(const QF *qf, uint64_t index) {
-  return get_slot(qf, index )>> (qf->metadata->value_bits);
-}
-
 static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
   // assert(index < qf->metadata->xnslots);
   /* Should use __uint128_t to support up to 64-bit remainders, but gcc seems
@@ -645,6 +647,10 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
 }
 
 #endif
+
+static inline uint64_t get_slot_remainder(const QF *qf, uint64_t index) {
+  return get_slot(qf, index )>> (qf->metadata->value_bits);
+}
 
 static inline int offset_lower_bound(const QF *qf, uint64_t slot_index);
 static inline uint64_t run_end(const QF *qf, uint64_t hash_bucket_index);
