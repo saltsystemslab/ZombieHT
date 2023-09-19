@@ -116,20 +116,17 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
       modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
   #ifdef UNORDERED
     //swap the tombstone with runend until you get to this run.
-    uint64_t prev_runend = available_slot_index;
-    while(!is_runend(qf, prev_runend)) prev_runend--;
+    // We don't check if this returns -1, because there must be a runend before this.
+    uint64_t prev_runend = find_prev_runend(qf, available_slot_index);
     while (true) {
       uint64_t runstart_value = get_slot(qf, prev_runend+1);
-      uint64_t available_slot_value = get_slot(qf, available_slot_index);
+      set_slot(qf, prev_runend+1, get_slot(qf, available_slot_index));
       set_slot(qf, available_slot_index, runstart_value);
-      set_slot(qf, prev_runend+1, available_slot_value);
       available_slot_index = prev_runend+1;
       if (available_slot_index == insert_index) {
         break;
       }
-      prev_runend--;
-      while(!is_runend(qf, prev_runend)) prev_runend--;
-      printf("%lu %lu %lu\n", insert_index, prev_runend, available_slot_index);
+      prev_runend = find_prev_runend(qf, prev_runend);
     }
   #else
     // shift
@@ -156,84 +153,6 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     ret_distance = available_slot_index - hash_bucket_index + 1;
 #ifdef _BLOCKOFFSET_4_NUM_RUNENDS
     _recalculate_block_offsets(qf, hash_bucket_index, run_shift_end);
-#else
-    _recalculate_block_offsets(qf, hash_bucket_index);
-#endif
-  }
-
-  if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
-    qf_unlock(qf, hash_bucket_index, /*small*/ true);
-  }
-  return ret_distance;
-}
-
-int qft_insert_unordered(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
-#ifdef DEBUG
-  size_t occupied_slots = qf_get_num_occupied_slots(qf);
-  // printf("occupied_slots: %zu\n", occupied_slots);
-  if (occupied_slots >= qf->metadata->nslots) {
-    qft_rebuild(qf, QF_NO_LOCK);
-    if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots) return QF_NO_SPACE;
-  }
-  if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
-    fprintf(stderr, "RobinHood Tombstone HM assumes key is hash for now.");
-    abort();
-  }
-#endif
-  size_t ret_distance = 0;
-  uint64_t hash = key2hash(qf, key, flags);
-  uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
-  quotien_remainder(qf, hash, &hash_bucket_index, &hash_remainder);
-  uint64_t new_value = (hash_remainder << qf->metadata->value_bits) |
-                       (value & BITMASK(qf->metadata->value_bits));
-
-  if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
-    if (!qf_lock(qf, hash_bucket_index, /*small*/ true, flags))
-      return QF_COULDNT_LOCK;
-  }
-
-  if (is_empty_ts(qf, hash_bucket_index)) {
-    set_slot(qf, hash_bucket_index, new_value);
-    SET_R(qf, hash_bucket_index);
-    SET_O(qf, hash_bucket_index);
-    RESET_T(qf, hash_bucket_index);
-
-    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-    modify_metadata(&qf->runtimedata->pc_nelts, 1);
-  } else {
-    uint64_t insert_index, runstart_index, runend_index;
-    int ret = find(qf, hash_bucket_index, hash_remainder, &insert_index,
-                   &runstart_index, &runend_index);
-    if (ret == 1)
-      return QF_KEY_EXISTS;
-    uint64_t available_slot_index = find_next_tombstone(qf, runstart_index);
-    if (available_slot_index < runend_index) {
-      insert_index = available_slot_index;
-    } else {
-      if (is_empty_ts(qf, available_slot_index))
-        modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-      // Move the tombstone to the end of the run.
-      if (available_slot_index > runend_index) {
-        size_t to_block_i = runend_index / QF_SLOTS_PER_BLOCK;
-        size_t to_block_offset = runend_index % QF_SLOTS_PER_BLOCK;
-        size_t from_block_i = available_slot_index / QF_SLOTS_PER_BLOCK;
-        size_t from_block_offset = available_slot_index % QF_SLOTS_PER_BLOCK;
-        while (to_block_i < from_block_i) {
-          size_t block_runends = get_block(qf, from_block_i)->runends[0];
-          block_runends &= ~BITMASK(from_block_offset);
-          // TODO
-        }
-      }
-    }
-    RESET_T(qf, available_slot_index);
-    set_slot(qf, insert_index, new_value);
-    SET_O(qf, hash_bucket_index);
-    // counts
-    modify_metadata(&qf->runtimedata->pc_nelts, 1);
-    // else use a tombstone
-    ret_distance = available_slot_index - hash_bucket_index + 1;
-#ifdef _BLOCKOFFSET_4_NUM_RUNENDS
-    _recalculate_block_offsets(qf, hash_bucket_index, available_slot_index);
 #else
     _recalculate_block_offsets(qf, hash_bucket_index);
 #endif

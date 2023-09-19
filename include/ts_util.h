@@ -16,6 +16,27 @@ static inline int is_tombstone(const QF *qf, uint64_t index) {
          1ULL;
 }
 
+/* Find the previous runend from this position, excluding that position. */
+static inline size_t find_prev_runend(QF *qf, size_t slot) {
+  size_t block_index = slot / QF_SLOTS_PER_BLOCK;
+  const size_t slot_offset = slot % QF_SLOTS_PER_BLOCK;
+  size_t block_runend_word = get_block(qf, block_index)->runends[0];
+  // mask the higher order bits, these are positions that come after the slot.
+  block_runend_word = (block_runend_word & BITMASK(slot_offset)); 
+  uint64_t mask = BITMASK(slot);
+  size_t prev = bitscanreverse(block_runend_word);
+  while (prev == MAX_VALUE(64)) {
+    assert(block_index > 0);
+    if (block_index == 0) {
+      return -1;
+    }
+    block_index--;
+    block_runend_word = get_block(qf, block_index)->runends[0];
+    prev = bitscanreverse(block_runend_word);
+  }
+  return block_index * QF_SLOTS_PER_BLOCK + prev;
+}
+
 /* Find the first tombstone in [from, xnslots), it can be empty or not empty. */
 static inline size_t find_next_tombstone(QF *qf, size_t from) {
   size_t block_index = from / QF_SLOTS_PER_BLOCK;
