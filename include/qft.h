@@ -129,9 +129,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     //swap the tombstone with runend until you get to this run.
     uint64_t prev_runend = find_prev_runend(qf, available_slot_index);
     while (true) {
-      uint64_t runstart_value = get_slot(qf, prev_runend+1);
-      set_slot(qf, prev_runend+1, get_slot(qf, available_slot_index));
-      set_slot(qf, available_slot_index, runstart_value);
+      swap_slot(qf, prev_runend+1, available_slot_index);
       available_slot_index = prev_runend+1;
       if (available_slot_index == insert_index) {
         break;

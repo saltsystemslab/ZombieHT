@@ -577,6 +577,22 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
       value & BITMASK(qf->metadata->bits_per_slot);
 }
 
+static inline void swap_slot(const QF *qf, uint64_t a, uint64_t b) {
+  #if QF_BITS_PER_SLOT == 8
+    uint8_t temp;
+  #elif QF_BITS_PER_SLOT == 16
+    uint16_t temp;
+  #elif QF_BITS_PER_SLOT == 32
+    uint32_t temp;
+  #elif QF_BITS_PER_SLOT == 64
+    uint64_t temp;
+  #endif
+  temp = get_block(qf, a / QF_SLOTS_PER_BLOCK) -> slots[a % QF_SLOTS_PER_BLOCK];
+  get_block(qf, a / QF_SLOTS_PER_BLOCK) -> slots[a % QF_SLOTS_PER_BLOCK] = 
+    get_block(qf, b / QF_SLOTS_PER_BLOCK) -> slots[b % QF_SLOTS_PER_BLOCK];
+  get_block(qf, b / QF_SLOTS_PER_BLOCK) -> slots[b % QF_SLOTS_PER_BLOCK] = temp;
+}
+
 #elif QF_BITS_PER_SLOT > 0
 
 /* Little-endian code ....  Big-endian is TODO */
@@ -644,6 +660,13 @@ static inline void set_slot(const QF *qf, uint64_t index, uint64_t value) {
   t &= ~mask;
   t |= v;
   *p = t;
+}
+
+static inline void swap_slot(const QF *qf, uint64_t a, uint64_t b) {
+  uint64_t temp;
+  temp = get_slot(qf, a);(qf, a / QF_SLOTS_PER_BLOCK) -> slots[a % QF_SLOTS_PER_BLOCK];
+  set_slot(qf, a, get_slot(qf, b));
+  set_slot(qf, b, temp);
 }
 
 #endif
