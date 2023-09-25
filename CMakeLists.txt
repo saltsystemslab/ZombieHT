@@ -3,7 +3,7 @@ project(ZombieHashTable)
 
 option(NEW_BLOCKOFFSET "Use new blockoffset" ON)
 option(UNORDERED "Whether quotients are ordered inside a run" OFF)
-option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered." OFF)
+option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered to make space for a new item." OFF)
 set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
 set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
 set(QF_BITS_PER_SLOT "0" CACHE STRING "Bits per QF slots")

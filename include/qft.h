@@ -108,8 +108,10 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
                    &runstart_index, &runend_index);
     if (ret == 1)
       return QF_KEY_EXISTS;
-    #ifdef UNORDERED
+  #ifdef UNORDERED
     if (is_occupied(qf, hash_bucket_index) && insert_index < runend_index) {
+      // If slot is found inside a runend, it must be a tombstone.
+      // Insert quickly here and exit without shifting anything.
       assert(is_tombstone(insert_index));
       RESET_T(qf, insert_index);
       set_slot(qf, insert_index, new_value);
@@ -117,30 +119,26 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
       modify_metadata(&qf->runtimedata->pc_nelts, 1);
       return insert_index - hash_bucket_index + 1;
     }
-    #endif
+  #endif
     uint64_t available_slot_index = find_next_tombstone(qf, insert_index);
     uint64_t run_shift_end = available_slot_index;
     if (available_slot_index >= qf->metadata->xnslots)
       return QF_NO_SPACE;
     if (is_empty_ts(qf, available_slot_index))
       modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-  #ifdef UNORDERED
-    #ifdef SWAP_TOMBSTONE
-    //swap the tombstone with runend until you get to this run.
+  #if defined(UNORDERED) && defined(SWAP_TOMBSTONE)
+    // Shift the tombstone to available_slot_index by swapping runend values
+    // of runs in between.
     uint64_t prev_runend = find_prev_runend(qf, available_slot_index);
     while (true) {
-      swap_slot(qf, prev_runend+1, available_slot_index);
+      set_slot(qf, available_slot_index, get_slot(qf, prev_runend+1));
       available_slot_index = prev_runend+1;
       if (available_slot_index == insert_index) {
         break;
       }
       prev_runend = find_prev_runend(qf, prev_runend);
     }
-    #else
-    shift_remainders(qf, insert_index, available_slot_index);
-    #endif
   #else
-    // shift
     shift_remainders(qf, insert_index, available_slot_index);
   #endif
     // Fix metadata
