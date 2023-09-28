@@ -38,7 +38,9 @@ int quotient_bits = 8;
 int value_bits = 8;
 int initial_load_factor = 95;
 int nchurns = 10;
-int nchurn_ops = 500;
+int nchurn_insert_ops = 500;
+int nchurn_delete_ops = 500;
+int nchurn_lookup_ops = 500;
 int npoints = 50;
 int should_record = 0;
 int churn_latency_sample_rate = 1000;
@@ -144,8 +146,9 @@ void usage(char *name) {
       "  -v value_keybits      [ Size of value in bits. ]\n"
       "  -i initial load       [ Initial Load Factor[0-100]. Default 94 ]\n"
       "  -c churn cycles       [ Number of churn cycles.  Default 10 ]\n"
-      "  -l churn length       [ Number of insert, delete operations per churn "
+      "  -l churn length       [ Number of lookup operations per churn ]\n"
       "cycle ]\n"
+      "  -w churn length       [ Number of insert/delete operations per churn.]\n"
       "  -r record             [ Whether to record. If 1 will record to -f. Use test_runner to replay or check test case.]\n"
       "  -f record/replay file [ File to record to. Default test_case.txt ]\n"
       "  -p npoints            [ number of points on the graph for load phase.  Default 20]\n"
@@ -160,8 +163,9 @@ void parseArgs(int argc, char **argv) {
   /* Argument parsing */
   int opt;
   char *term;
+  int nchurn_ops;
 
-  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:l:f:p:r:s:g:t:")) != -1) {
+  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:w:l:f:p:r:s:g:t:")) != -1) {
     switch (opt) {
 		case 'd':
 				dir = std::string(optarg);
@@ -207,9 +211,18 @@ void parseArgs(int argc, char **argv) {
       }
       break;
     case 'l':
-      nchurn_ops = strtol(optarg, &term, 10);
+      nchurn_lookup_ops = strtol(optarg, &term, 10);
       if (*term) {
         fprintf(stderr, "Argument to -l must be an integer\n");
+        usage(argv[0]);
+        exit(1);
+      }
+      break;
+    case 'w':
+      nchurn_insert_ops = strtol(optarg, &term, 10);
+      nchurn_delete_ops = strtol(optarg, &term, 10);
+      if (*term) {
+        fprintf(stderr, "Argument to -w must be an integer\n");
         usage(argv[0]);
         exit(1);
       }
@@ -273,7 +286,7 @@ void parseArgs(int argc, char **argv) {
 std::vector<hm_op> generate_ops() {
   uint64_t num_initial_load_ops = num_initial_load_keys;
   // Each Churn Op is a cycle of INSERTS and DELETES.
-  uint64_t total_churn_ops = num_initial_load_ops + (nchurns * nchurn_ops * 2);
+  uint64_t total_churn_ops = num_initial_load_ops + (nchurns * (nchurn_delete_ops + nchurn_insert_ops + nchurn_lookup_ops));
 
   std::vector<std::pair<uint64_t, uint64_t>> kv;
   std::vector<hm_op> ops;
@@ -295,24 +308,24 @@ std::vector<hm_op> generate_ops() {
   }
 
   // CHURN PHASE
-  uint64_t *keys_indexes_to_delete = new uint64_t[nchurn_ops];
-  uint64_t *keys_indexes_to_query = new uint64_t[nchurn_ops];
-  uint64_t *new_keys = new uint64_t[nchurn_ops];
-  uint64_t *new_values = new uint64_t[nchurn_ops];
+  uint64_t *keys_indexes_to_delete = new uint64_t[nchurn_delete_ops];
+  uint64_t *keys_indexes_to_query = new uint64_t[nchurn_lookup_ops];
+  uint64_t *new_keys = new uint64_t[nchurn_insert_ops];
+  uint64_t *new_values = new uint64_t[nchurn_insert_ops];
   for (int churn_cycle = 0; churn_cycle < nchurns; churn_cycle++) {
     fprintf(LOG, "Generating for churn %d\n", churn_cycle);
-    RAND_bytes((unsigned char *)new_keys, nchurn_ops * sizeof(uint64_t));
-    RAND_bytes((unsigned char *)new_values, nchurn_ops * sizeof(uint64_t));
-    RAND_bytes((unsigned char *)keys_indexes_to_delete, nchurn_ops * sizeof(uint64_t));
-    RAND_bytes((unsigned char *)keys_indexes_to_query, nchurn_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)new_keys, nchurn_insert_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)new_values, nchurn_insert_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)keys_indexes_to_delete, nchurn_delete_ops * sizeof(uint64_t));
+    RAND_bytes((unsigned char *)keys_indexes_to_query, nchurn_lookup_ops * sizeof(uint64_t));
 
-    for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+    for (int churn_op = 0; churn_op < nchurn_insert_ops; churn_op++) {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
       ops.push_back(hm_op{DELETE, key, value});
     }
-    for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+    for (int churn_op = 0; churn_op < nchurn_delete_ops; churn_op++) {
       uint64_t key = (new_keys[churn_op] & BITMASK(key_bits));
       uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
       ops.push_back(hm_op{INSERT, key, value});
@@ -320,7 +333,7 @@ std::vector<hm_op> generate_ops() {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       kv[index] = make_pair(key, value);
     }
-    for (int churn_op = 0; churn_op < nchurn_ops; churn_op++) {
+    for (int churn_op = 0; churn_op < nchurn_lookup_ops; churn_op++) {
       uint64_t index = keys_indexes_to_query[churn_op] % kv.size();
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
@@ -418,22 +431,25 @@ void run_churn(
   vector<ThrputMeasure> thrput_measures;
   vector<LatencyMeasure> latency_measures;
   vector<HmMetadataMeasure> metadata_measures;
-  uint64_t throughput_ops_per_bucket = nchurn_ops / churn_thrput_resolution;
+  uint64_t throughput_ops_per_bucket; 
   int status = 0;
   int churn_start_op = start;
   for (int i=0; i<nchurns; i++) {
     // DELETE
-    status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+    throughput_ops_per_bucket = nchurn_delete_ops / churn_thrput_resolution;
+    status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
     if (status) break;
-    churn_start_op += nchurn_ops;
+    churn_start_op += nchurn_delete_ops;
     // INSERT 
-    status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+    throughput_ops_per_bucket = nchurn_insert_ops / churn_thrput_resolution;
+    status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
     if (status) break;
-    churn_start_op += nchurn_ops;
+    churn_start_op += nchurn_insert_ops;
     // LOOKUP
-    status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+    throughput_ops_per_bucket = nchurn_lookup_ops / churn_thrput_resolution;
+    status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
     if (status) break;
-    churn_start_op += nchurn_ops;
+    churn_start_op += nchurn_lookup_ops;
 
   #ifdef USE_ABSL
     metadata_measures.push_back({
@@ -533,7 +549,9 @@ void write_test_params(std::vector<hm_op> ops) {
   ofs<< value_bits << " " <<endl;
   ofs<< initial_load_factor << " " <<endl;
   ofs<< nchurns << " " << endl;
-  ofs<< nchurn_ops << " " << endl;
+  ofs<< nchurn_insert_ops << " " << endl;
+  ofs<< nchurn_delete_ops << " " << endl;
+  ofs<< nchurn_lookup_ops << " " << endl;
 
   for (uint64_t i=num_initial_load_keys+1; i<ops.size(); i++) {
     if (ops[i].op != ops[i-1].op) {
@@ -550,8 +568,6 @@ int main(int argc, char **argv) {
   } else {
     LOG = stderr;
   }
-  std::string outputfile = "thrput";
-  std::string replay_op = "replay.txt\0";
   setup(dir);
 
   std::vector<hm_op> ops;
