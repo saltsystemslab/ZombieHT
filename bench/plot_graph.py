@@ -100,6 +100,8 @@ def plot_latency_boxplots(op):
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[(df["op"]==op)]
+        if (len(df)==0):
+            return
         data.append(df["latency"])
         labels.append(d)
     fig = plt.figure(figsize=(10,6))
@@ -154,6 +156,7 @@ plot_tombstone_ratio()
 plot_latency_boxplots("DELETE")
 plot_latency_boxplots("INSERT")
 plot_latency_boxplots("LOOKUP")
+plot_latency_boxplots("MIXED")
 
 plot_distribution('home_slot_dist')
 plot_distribution('tombstone_dist')

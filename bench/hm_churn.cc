@@ -43,7 +43,7 @@ int nchurn_delete_ops = 500;
 int nchurn_lookup_ops = 500;
 int npoints = 50;
 int should_record = 0;
-int churn_latency_sample_rate = 1000;
+int churn_latency_bucket_size = 10;
 int churn_thrput_resolution = 4;
 int mixed_workload = 0;
 std::string record_file = "test_case.txt";
@@ -72,7 +72,7 @@ struct ThrputMeasure {
 };
 
 struct LatencyMeasure {
-  int op;
+  std::string op_name;
   uint64_t nanoseconds;
 };
 
@@ -132,19 +132,7 @@ void write_churn_latency_by_phase_to_file(
   FILE *fp = fopen(filename.c_str(), "w");
   fprintf(fp, "op    latency\n");
   for (auto measure: measures) {
-        std::string op_name;
-        switch (measure.op) {
-          case INSERT:
-            op_name = "INSERT";
-            break;
-          case DELETE:
-            op_name = "DELETE";
-            break;
-          case LOOKUP:
-            op_name = "LOOKUP";
-            break;
-        }
-      fprintf(fp, "%s %lu\n", op_name.c_str(), measure.nanoseconds);
+      fprintf(fp, "%s %lu\n", measure.op_name.c_str(), measure.nanoseconds);
   }
   fclose(fp);
 }
@@ -166,7 +154,7 @@ void usage(char *name) {
       "  -f record/replay file [ File to record to. Default test_case.txt ]\n"
       "  -p npoints            [ number of points on the graph for load phase.  Default 20]\n"
       "  -t throughput buckets [number of points to collect per churn phase op.  Default 4]\n"
-      "  -g latency sample rate[ churn op latency sampling rate.  Default 1000]\n"
+      "  -g latency bucket size[ churn op latency bucket size.  Default 10]\n"
       "  -m Mixed workload     [ Shuffle operations in a churn cycle. ]\n"
       "  -s silent             [ Default 1. Use 0 for verbose mode\n"
       "]\n",
@@ -290,7 +278,7 @@ void parseArgs(int argc, char **argv) {
       exit(1);
       break;
     case 'g':
-      churn_latency_sample_rate = strtol(optarg, &term, 10);
+      churn_latency_bucket_size = strtol(optarg, &term, 10);
       if (*term) {
       }
       break;
@@ -439,10 +427,9 @@ int profile_ops(
   vector<hm_op> &ops,
   uint64_t op_start,
   uint64_t op_end,
-  uint64_t latency_sample_rate,
-  uint64_t throughput_bucket_size) {
+  uint64_t throughput_bucket_size,
+  bool should_measure_latency) {
 
-  bool should_sample_latency = false;
   uint64_t ops_executed = 0;
   time_point<high_resolution_clock> throughput_measure_begin, throughput_measure_end;
   time_point<high_resolution_clock> latency_measure_begin, latency_measure_end;
@@ -460,22 +447,21 @@ int profile_ops(
       }
       throughput_measure_begin = high_resolution_clock::now();
     }
-    if (ops_executed % latency_sample_rate == 0) {
+    if (should_measure_latency && ops_executed % churn_latency_bucket_size == 0) {
+      if (ops_executed) {
+        latency_measure_end = high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(latency_measure_end - latency_measure_begin);
+        latency_samples.push_back({
+          operation,
+          (uint64_t)duration.count()
+        });
+      }
       latency_measure_begin = high_resolution_clock::now();
     }
-
     int status = execute_hm_op(ops, i);
     if (ops[i].op == INSERT && status == QF_NO_SPACE) {
       // DIED. Handle Death.
       return -1;
-    }
-    if (ops_executed % latency_sample_rate == 0) {
-      latency_measure_end = high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(latency_measure_end - latency_measure_begin);
-      latency_samples.push_back({
-          ops[i].op,
-          (uint64_t)duration.count()
-        });
     }
     ops_executed++;
   }
@@ -506,27 +492,29 @@ void run_churn(
   uint64_t throughput_ops_per_bucket; 
   int status = 0;
   int churn_start_op = start;
+  bool should_measure_latency = false;
   for (int i=0; i<nchurns; i++) {
+    should_measure_latency = (nchurns - i > 5);
     if (mixed_workload) {
       int nchurn_ops = nchurn_insert_ops + nchurn_delete_ops + nchurn_lookup_ops;
       throughput_ops_per_bucket = nchurn_ops / churn_thrput_resolution;
-      status = profile_ops(i, "MIXED", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op + nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      status = profile_ops(i, "MIXED", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op + nchurn_ops, throughput_ops_per_bucket, should_measure_latency);
       if (status) break;
       churn_start_op += nchurn_ops;
     } else {
       // DELETE
       throughput_ops_per_bucket = nchurn_delete_ops / churn_thrput_resolution;
-      status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, throughput_ops_per_bucket, should_measure_latency);
       if (status) break;
       churn_start_op += nchurn_delete_ops;
       // INSERT 
       throughput_ops_per_bucket = nchurn_insert_ops / churn_thrput_resolution;
-      status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, throughput_ops_per_bucket, should_measure_latency);
       if (status) break;
       churn_start_op += nchurn_insert_ops;
       // LOOKUP
       throughput_ops_per_bucket = nchurn_lookup_ops / churn_thrput_resolution;
-      status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, throughput_ops_per_bucket, should_measure_latency);
       if (status) break;
       churn_start_op += nchurn_lookup_ops;
     }
