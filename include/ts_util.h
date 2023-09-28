@@ -16,6 +16,25 @@ static inline int is_tombstone(const QF *qf, uint64_t index) {
          1ULL;
 }
 
+/* Find the previous runend from this position, excluding that position. */
+static inline size_t find_prev_runend(QF *qf, size_t slot) {
+  size_t block_index = slot / QF_SLOTS_PER_BLOCK;
+  const size_t slot_offset = slot % QF_SLOTS_PER_BLOCK;
+  size_t block_runend_word = get_block(qf, block_index)->runends[0];
+  // mask the higher order bits, these are positions that come after the slot.
+  block_runend_word = (block_runend_word & BITMASK(slot_offset)); 
+  uint64_t mask = BITMASK(slot);
+  size_t prev = bitscanreverse(block_runend_word);
+  if (prev != BITMASK(64)) {
+    return block_index * QF_SLOTS_PER_BLOCK + prev;
+  }
+  do {
+    block_runend_word = get_block(qf, --block_index)->runends[0];
+  } while (block_runend_word == 0);
+  prev = bitscanreverse(block_runend_word);
+  return block_index * QF_SLOTS_PER_BLOCK + prev;
+}
+
 /* Find the first tombstone in [from, xnslots), it can be empty or not empty. */
 static inline size_t find_next_tombstone(QF *qf, size_t from) {
   size_t block_index = from / QF_SLOTS_PER_BLOCK;
@@ -37,8 +56,8 @@ static inline void shift_runends_tombstones(QF *qf, int64_t first,
                                             uint64_t last, uint64_t distance) {
 #ifdef DEBUG
   assert(last < qf->metadata->xnslots);
-#endif
   assert(distance < 64);
+#endif
   uint64_t first_word = first / 64;
   uint64_t bstart = first % 64;
   uint64_t last_word = (last + distance - 1) / 64;
@@ -68,7 +87,6 @@ static inline void shift_runends_tombstones(QF *qf, int64_t first,
   METADATA_WORD(qf, tombstones, 64 * last_word) = shift_into_b(
       0, METADATA_WORD(qf, tombstones, 64 * last_word), bstart, bend, distance);
 }
-
 
 
 static inline bool is_empty_ts(const QF *qf, uint64_t slot_index) {
@@ -332,6 +350,11 @@ static void reset_rebuild_cd(HM *hm) {
 #endif
 }
 
+/* Given quotient and remainder, find the range of the run [start, end) and the
+ * position of the slot if it exits. If it doesn't exist, the position is where
+ * it should be inserted.
+ * Return 1 if found, 0 otherwise.
+ */
 static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
                 uint64_t *const index, uint64_t *const run_start_index,
                 uint64_t *const run_end_index) {
@@ -346,16 +369,35 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
   }
   *run_end_index = run_end(qf, quotient) + 1;
   uint64_t curr_remainder;
+#ifdef UNORDERED
+  uint64_t tombstone_in_run = -1;
+#endif
   do {
     if (!is_tombstone(qf, *index)) {
       curr_remainder = get_slot(qf, *index) >> qf->metadata->value_bits;
       if (remainder == curr_remainder)
         return 1;
+#ifndef UNORDERED
+      // This is the position we need to insert at.
       if (remainder < curr_remainder)
         return 0;
+#endif
     }
+#ifdef UNORDERED
+    else {
+      // This is a tombstone we can insert at directly.
+      // Still need to check if the item is already present, so don't exit just yet.
+      tombstone_in_run = *index;
+    }
+#endif
     *index += 1;
   } while (*index < *run_end_index);
+#ifdef UNORDERED
+  // Check if there is a tombstone in the run you can use.
+  if (tombstone_in_run != -1) {
+    *index = tombstone_in_run;
+  }
+#endif
   return 0;
 }
 

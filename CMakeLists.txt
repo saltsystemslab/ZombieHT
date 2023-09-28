@@ -2,8 +2,11 @@ cmake_minimum_required (VERSION 3.1...3.27)
 project(ZombieHashTable)
 
 option(NEW_BLOCKOFFSET "Use new blockoffset" ON)
+option(UNORDERED "Whether quotients are ordered inside a run" OFF)
+option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered to make space for a new item." OFF)
 set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
 set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
+set(QF_BITS_PER_SLOT "0" CACHE STRING "Bits per QF slots")
 
 if (NOT PTS STREQUAL "0.0")
   add_compile_definitions(-DPTS=${PTS})
@@ -11,6 +14,16 @@ endif()
 if (NEW_BLOCKOFFSET)
   add_compile_definitions(-D_BLOCKOFFSET_4_NUM_RUNENDS)
 endif()
+
+if (UNORDERED)
+  add_compile_definitions(-DUNORDERED)
+endif()
+
+if (SWAP_TOMBSTONE)
+  add_compile_definitions(-DSWAP_TOMBSTONE)
+endif()
+
+add_compile_definitions(-DQF_BITS_PER_SLOT=${QF_BITS_PER_SLOT})
 
 if(VARIANT STREQUAL "RHM")
   add_compile_definitions(-DUSE_RHM)

@@ -15,7 +15,7 @@ void qft_rebuild(QF *qf, uint8_t flags);
 
 #ifdef REBUILD_DEAMORTIZED_GRAVEYARD
 /* Start at `qf->metadata->rebuild_run`, 
- * rebuild `qf->metadata->rebuild_interval` quotiens. 
+ * rebuild `qf->metadata->rebuild_interval` quotients. 
  * Leave the pushing tombstones at the beginning of the next run. 
  * Here we do rebuild run by run. 
  * Return the number of pushing tombstones at the end.
@@ -70,6 +70,7 @@ int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
 #endif
 
 int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
+#ifdef DEBUG
   size_t occupied_slots = qf_get_num_occupied_slots(qf);
   // printf("occupied_slots: %zu\n", occupied_slots);
   if (occupied_slots >= qf->metadata->nslots) {
@@ -80,6 +81,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     fprintf(stderr, "RobinHood Tombstone HM assumes key is hash for now.");
     abort();
   }
+#endif
   size_t ret_distance = 0;
   uint64_t hash = key2hash(qf, key, flags);
   uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
@@ -106,38 +108,60 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
                    &runstart_index, &runend_index);
     if (ret == 1)
       return QF_KEY_EXISTS;
-    uint64_t available_slot_index = find_next_tombstone(qf, insert_index);
-    ret_distance = available_slot_index - hash_bucket_index + 1;
-    if (available_slot_index >= qf->metadata->xnslots) {
-      fprintf(stderr, "Reached xnslots.\n");
-      return QF_NO_SPACE;
+  #ifdef UNORDERED
+    if (is_occupied(qf, hash_bucket_index) && insert_index < runend_index) {
+      // If slot is found inside a runend, it must be a tombstone.
+      // Insert quickly here and exit without shifting anything.
+      assert(is_tombstone(insert_index));
+      RESET_T(qf, insert_index);
+      set_slot(qf, insert_index, new_value);
+      SET_O(qf, hash_bucket_index);
+      modify_metadata(&qf->runtimedata->pc_nelts, 1);
+      return insert_index - hash_bucket_index + 1;
     }
-      // return QF_NO_SPACE;
-    // counts
-    modify_metadata(&qf->runtimedata->pc_nelts, 1);
+  #endif
+    uint64_t available_slot_index = find_next_tombstone(qf, insert_index);
+    uint64_t run_shift_end = available_slot_index;
+    if (available_slot_index >= qf->metadata->xnslots)
+      return QF_NO_SPACE;
     if (is_empty_ts(qf, available_slot_index))
       modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-    // else use a tombstone
-    // shift 
-    if (insert_index < available_slot_index)
-      shift_remainders(qf, insert_index, available_slot_index);
-    // shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
-    set_slot(qf, insert_index, new_value);
+  #if defined(UNORDERED) && defined(SWAP_TOMBSTONE)
+    // Shift the tombstone to available_slot_index by swapping runend values
+    // of runs in between.
+    uint64_t prev_runend = find_prev_runend(qf, available_slot_index);
+    while (true) {
+      set_slot(qf, available_slot_index, get_slot(qf, prev_runend+1));
+      available_slot_index = prev_runend+1;
+      if (available_slot_index == insert_index) {
+        break;
+      }
+      prev_runend = find_prev_runend(qf, prev_runend);
+    }
+  #else
+    shift_remainders(qf, insert_index, available_slot_index);
+  #endif
     // Fix metadata
     if (!is_occupied(qf, hash_bucket_index)) {
       // If it is a new run, we need a new runend
-      shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
+      shift_runends_tombstones(qf, insert_index, run_shift_end, 1);
       SET_R(qf, insert_index);
     } else if (insert_index >= runend_index) {
       // insert to the end of the run
-      shift_runends_tombstones(qf, insert_index - 1, available_slot_index, 1);
+      shift_runends_tombstones(qf, insert_index - 1, run_shift_end, 1);
     } else {
       // insert to the begin or middle
-      shift_runends_tombstones(qf, insert_index, available_slot_index, 1);
+      shift_runends_tombstones(qf, insert_index, run_shift_end, 1);
     }
+    RESET_T(qf, available_slot_index);
+    set_slot(qf, insert_index, new_value);
     SET_O(qf, hash_bucket_index);
+    // counts
+    modify_metadata(&qf->runtimedata->pc_nelts, 1);
+    // else use a tombstone
+    ret_distance = available_slot_index - hash_bucket_index + 1;
 #ifdef _BLOCKOFFSET_4_NUM_RUNENDS
-    _recalculate_block_offsets(qf, hash_bucket_index, available_slot_index);
+    _recalculate_block_offsets(qf, hash_bucket_index, run_shift_end);
 #else
     _recalculate_block_offsets(qf, hash_bucket_index);
 #endif
@@ -146,7 +170,6 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
   if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
     qf_unlock(qf, hash_bucket_index, /*small*/ true);
   }
-
   return ret_distance;
 }
 
