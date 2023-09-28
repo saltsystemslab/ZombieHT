@@ -27,19 +27,23 @@ for l in lines[6:]:
 def add_caption():
     plt.text(.5, -0.15, f"q_bits={quotient_bits}, r_bits={key_bits - quotient_bits + value_bits}, ChurnOps: {churn_ops}, ChurnCycles: {churn_cycles}", ha='center', transform=plt.gca().transAxes)
 
-def plot_churn_overall_throughput():
+def plot_churn_overall_throughput(include_lookups=False):
     plt.figure(figsize=(10,6))
     overall_thrput = ""
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         # Filter out LOOKUP
-        df = df[df['op'] != 'LOOKUP']
+        if (not include_lookups):
+            df = df[df['op'] != 'LOOKUP']
         df = df.groupby("churn_cycle").agg({"y_0": hmean}) * 1000.0
         plt.plot(df.index, df["y_0"], label="%s: %.3f" % (d, hmean(df["y_0"])) )
         plt.xlabel("churn cycle" )
         plt.ylabel("throughput (ops/microsec)")
     plt.legend()
-    plt.title(f"CHURN PHASE (Insert + Delete) Overall Throughput")
+    if (include_lookups):
+        plt.title(f"CHURN PHASE Overall Throughput")
+    else:
+        plt.title(f"CHURN PHASE (Insert + Delete) Overall Throughput")
     add_caption()
     plt.tight_layout()
     plt.savefig(os.path.join(dir, "plot_churn_throughput.png"))
@@ -78,6 +82,8 @@ def plot_churn_op_throuput(op):
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[ (df["op"]==op) ]
+        if (len(df)==0):
+            return
         plt.plot(df["x_0"], df["y_0"] * 1000.0, label="%s: %.3f" % (d, hmean(df["y_0"] * 1000)))
         plt.xlabel("churn percentage progress" )
         plt.ylabel("throughput (ops/usec)")
@@ -140,7 +146,8 @@ plt.close()
 plot_churn_op_throuput("DELETE")
 plot_churn_op_throuput("INSERT")
 plot_churn_op_throuput("LOOKUP")
-plot_churn_overall_throughput()
+plot_churn_op_throuput("MIXED")
+plot_churn_overall_throughput(include_lookups=True)
 plot_tombstone()
 plot_tombstone_ratio()
 

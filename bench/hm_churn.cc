@@ -45,6 +45,7 @@ int npoints = 50;
 int should_record = 0;
 int churn_latency_sample_rate = 1000;
 int churn_thrput_resolution = 4;
+int mixed_workload = 0;
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
 uint64_t num_slots = 0;
@@ -71,7 +72,7 @@ struct ThrputMeasure {
 };
 
 struct LatencyMeasure {
-  std::string operation;
+  int op;
   uint64_t nanoseconds;
 };
 
@@ -131,7 +132,19 @@ void write_churn_latency_by_phase_to_file(
   FILE *fp = fopen(filename.c_str(), "w");
   fprintf(fp, "op    latency\n");
   for (auto measure: measures) {
-      fprintf(fp, "%s %lu\n", measure.operation.c_str(), measure.nanoseconds);
+        std::string op_name;
+        switch (measure.op) {
+          case INSERT:
+            op_name = "INSERT";
+            break;
+          case DELETE:
+            op_name = "DELETE";
+            break;
+          case LOOKUP:
+            op_name = "LOOKUP";
+            break;
+        }
+      fprintf(fp, "%s %lu\n", op_name.c_str(), measure.nanoseconds);
   }
   fclose(fp);
 }
@@ -154,6 +167,7 @@ void usage(char *name) {
       "  -p npoints            [ number of points on the graph for load phase.  Default 20]\n"
       "  -t throughput buckets [number of points to collect per churn phase op.  Default 4]\n"
       "  -g latency sample rate[ churn op latency sampling rate.  Default 1000]\n"
+      "  -m Mixed workload     [ Shuffle operations in a churn cycle. ]\n"
       "  -s silent             [ Default 1. Use 0 for verbose mode\n"
       "]\n",
       name);
@@ -165,7 +179,7 @@ void parseArgs(int argc, char **argv) {
   char *term;
   int nchurn_ops;
 
-  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:w:l:f:p:r:s:g:t:")) != -1) {
+  while ((opt = getopt(argc, argv, "d:k:q:v:i:c:w:l:f:p:r:s:g:t:m:")) != -1) {
     switch (opt) {
 		case 'd':
 				dir = std::string(optarg);
@@ -214,6 +228,14 @@ void parseArgs(int argc, char **argv) {
       nchurn_lookup_ops = strtol(optarg, &term, 10);
       if (*term) {
         fprintf(stderr, "Argument to -l must be an integer\n");
+        usage(argv[0]);
+        exit(1);
+      }
+      break;
+    case 'm':
+      mixed_workload = strtol(optarg, &term, 10);
+      if (*term) {
+        fprintf(stderr, "Argument to -m must be an integer\n");
         usage(argv[0]);
         exit(1);
       }
@@ -319,27 +341,77 @@ std::vector<hm_op> generate_ops() {
     RAND_bytes((unsigned char *)keys_indexes_to_delete, nchurn_delete_ops * sizeof(uint64_t));
     RAND_bytes((unsigned char *)keys_indexes_to_query, nchurn_lookup_ops * sizeof(uint64_t));
 
-    for (int churn_op = 0; churn_op < nchurn_insert_ops; churn_op++) {
-      uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
-      uint64_t key = kv[index].first;
-      uint64_t value = kv[index].second;
-      ops.push_back(hm_op{DELETE, key, value});
-    }
-    for (int churn_op = 0; churn_op < nchurn_delete_ops; churn_op++) {
-      uint64_t key = (new_keys[churn_op] & BITMASK(key_bits));
-      uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
-      ops.push_back(hm_op{INSERT, key, value});
-      // Insert the key into the slot that was just deleted.
-      uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
-      kv[index] = make_pair(key, value);
-    }
-    for (int churn_op = 0; churn_op < nchurn_lookup_ops; churn_op++) {
-      uint64_t index = keys_indexes_to_query[churn_op] % kv.size();
-      uint64_t key = kv[index].first;
-      uint64_t value = kv[index].second;
-      ops.push_back(hm_op{LOOKUP, key, value});
+    if (mixed_workload) {
+      uint64_t total_churn_ops = nchurn_delete_ops + nchurn_insert_ops + nchurn_lookup_ops;
+      uint64_t num_ops[3] = {0, 0, 0};
+      uint64_t total_ops[3];
+      total_ops[INSERT] = nchurn_insert_ops;
+      total_ops[DELETE] = nchurn_delete_ops;
+      total_ops[LOOKUP] = nchurn_lookup_ops;
+      uint64_t churn_op = 0;
+      while (churn_op < total_churn_ops) {
+        int op_choice;
+        // Spin until we get a choice that has operations left.
+        do {
+          op_choice = rand() % 3;
+        } while (num_ops[op_choice] == total_ops[op_choice]);
+
+        if (op_choice == INSERT) {
+          if (num_ops[INSERT] == num_ops[DELETE]) {
+            // We don't want load factor going beyond max load factor.
+            // So do a delete here instead.
+            op_choice = DELETE;
+          } else {
+            uint64_t key = (new_keys[num_ops[INSERT]] & BITMASK(key_bits));
+            uint64_t value = (new_values[num_ops[INSERT]] & BITMASK(value_bits));
+            ops.push_back(hm_op{INSERT, key, value});
+            // Insert the key into a slot that was just deleted.
+            // Since num_deletes >= num_ops, this is guaranteed to be a deleted slot.
+            uint32_t index = keys_indexes_to_delete[num_ops[INSERT]] % kv.size();
+            kv[index] = make_pair(key, value);
+          }
+        } 
+        if (op_choice == DELETE) {
+          uint32_t index = keys_indexes_to_delete[num_ops[DELETE]] % kv.size();
+          uint64_t key = kv[index].first;
+          uint64_t value = kv[index].second;
+          ops.push_back(hm_op{DELETE, key, value});
+        } else if (op_choice == LOOKUP) {
+          uint64_t index = keys_indexes_to_query[num_ops[LOOKUP]] % kv.size();
+          uint64_t key = kv[index].first;
+          uint64_t value = kv[index].second;
+          ops.push_back(hm_op{LOOKUP, key, value});
+        }
+        num_ops[op_choice]++;
+        churn_op++;
+      }
+    } else {
+      for (int churn_op = 0; churn_op < nchurn_delete_ops; churn_op++) {
+        uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
+        uint64_t key = kv[index].first;
+        uint64_t value = kv[index].second;
+        ops.push_back(hm_op{DELETE, key, value});
+      }
+      for (int churn_op = 0; churn_op < nchurn_insert_ops; churn_op++) {
+        uint64_t key = (new_keys[churn_op] & BITMASK(key_bits));
+        uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
+        ops.push_back(hm_op{INSERT, key, value});
+        // Insert the key into the slot that was just deleted.
+        uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
+        kv[index] = make_pair(key, value);
+      }
+      for (int churn_op = 0; churn_op < nchurn_lookup_ops; churn_op++) {
+        uint64_t index = keys_indexes_to_query[churn_op] % kv.size();
+        uint64_t key = kv[index].first;
+        uint64_t value = kv[index].second;
+        ops.push_back(hm_op{LOOKUP, key, value});
+      }
     }
   }
+  delete keys_indexes_to_delete;
+  delete keys_indexes_to_query;
+  delete new_keys;
+  delete new_values;
   return ops;
 }
 
@@ -401,7 +473,7 @@ int profile_ops(
       latency_measure_end = high_resolution_clock::now();
       auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(latency_measure_end - latency_measure_begin);
       latency_samples.push_back({
-          operation,
+          ops[i].op,
           (uint64_t)duration.count()
         });
     }
@@ -435,21 +507,29 @@ void run_churn(
   int status = 0;
   int churn_start_op = start;
   for (int i=0; i<nchurns; i++) {
-    // DELETE
-    throughput_ops_per_bucket = nchurn_delete_ops / churn_thrput_resolution;
-    status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
-    if (status) break;
-    churn_start_op += nchurn_delete_ops;
-    // INSERT 
-    throughput_ops_per_bucket = nchurn_insert_ops / churn_thrput_resolution;
-    status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
-    if (status) break;
-    churn_start_op += nchurn_insert_ops;
-    // LOOKUP
-    throughput_ops_per_bucket = nchurn_lookup_ops / churn_thrput_resolution;
-    status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
-    if (status) break;
-    churn_start_op += nchurn_lookup_ops;
+    if (mixed_workload) {
+      int nchurn_ops = nchurn_insert_ops + nchurn_delete_ops + nchurn_lookup_ops;
+      throughput_ops_per_bucket = nchurn_ops / churn_thrput_resolution;
+      status = profile_ops(i, "MIXED", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op + nchurn_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      if (status) break;
+      churn_start_op += nchurn_ops;
+    } else {
+      // DELETE
+      throughput_ops_per_bucket = nchurn_delete_ops / churn_thrput_resolution;
+      status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      if (status) break;
+      churn_start_op += nchurn_delete_ops;
+      // INSERT 
+      throughput_ops_per_bucket = nchurn_insert_ops / churn_thrput_resolution;
+      status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      if (status) break;
+      churn_start_op += nchurn_insert_ops;
+      // LOOKUP
+      throughput_ops_per_bucket = nchurn_lookup_ops / churn_thrput_resolution;
+      status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, churn_latency_sample_rate, throughput_ops_per_bucket);
+      if (status) break;
+      churn_start_op += nchurn_lookup_ops;
+    }
 
   #ifdef USE_ABSL
     metadata_measures.push_back({
