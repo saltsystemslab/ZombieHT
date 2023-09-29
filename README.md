@@ -38,6 +38,7 @@ External Variants we compare against.
 Run the below command and see plots in `./bench_result`
 
 ```bash
+./scripts/make_dependencies.sh
 ./bench/run_cmake_churn.sh
 ```
 

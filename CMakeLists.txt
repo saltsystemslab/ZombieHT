@@ -45,6 +45,8 @@ elseif (VARIANT STREQUAL "ABSL")
   add_compile_definitions(-DUSE_ABSL)
 elseif (VARIANT STREQUAL "ICEBERG")
   add_compile_definitions(-DUSE_ICEBERG)
+elseif (VARIANT STREQUAL "CLHT")
+  add_compile_definitions(-DUSE_CLHT)
 else()
   message("Unkonwn Variant")
 endif()
@@ -57,6 +59,8 @@ set_source_files_properties(src/hashutil.c PROPERTIES LANGUAGE CXX )
 include_directories(
   include/
   tests/
+  external/clht/include
+  external/clht/external/include
 )
 
 add_library(hashutil src/hashutil.c)
@@ -71,6 +75,12 @@ if (VARIANT STREQUAL "ABSL")
 elseif(VARIANT STREQUAL "ICEBERG")
   add_subdirectory(external/iceberghashtable)
   target_link_libraries(hm_churn iceberg ssl crypto)
+elseif(VARIANT STREQUAL "CLHT")
+  # COMPILE DEFINITIONS USED BY CLHT.
+  add_compile_definitions(-DDEFAULT)
+  # This library must be built. Make sure the right one is built.
+  # TODO: Add a script that builds the right version.
+  target_link_libraries(hm_churn ssl crypto ${CMAKE_SOURCE_DIR}/external/clht/libclht.a)
 else()
   target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil)
 endif()

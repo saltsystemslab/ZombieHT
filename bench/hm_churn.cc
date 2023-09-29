@@ -528,8 +528,27 @@ void run_churn(
     });
   #endif
 
+  #ifdef USE_ICEBERG
+    metadata_measures.push_back({
+      i,
+      high_resolution_clock::now(),
+      0, // NA
+      0 // NA
+    });
+  #endif
+
+  #ifdef USE_CLHT
+    metadata_measures.push_back({
+      i,
+      high_resolution_clock::now(),
+      0, // NA
+      0 // NA
+    });
+  #endif
+
   #ifndef USE_ABSL
   #ifndef USE_ICEBERG
+  #ifndef USE_CLHT
     metadata_measures.push_back({
       i,
       high_resolution_clock::now(),
@@ -542,7 +561,7 @@ void run_churn(
     });
     #endif
     #endif
-    
+    #endif
   }
   write_churn_thrput_by_phase_to_file(thrput_measures, thrput_output_file);
   write_churn_latency_by_phase_to_file(latency_measures, latency_output_file);
