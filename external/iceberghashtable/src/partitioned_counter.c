@@ -43,7 +43,7 @@ void pc_destructor(pc_t *pc) {
   free(lc);
 }
 
-void pc_add(pc_t *pc, int64_t count, uint8_t counter_id) {
+void ice_pc_add(pc_t *pc, int64_t count, uint8_t counter_id) {
   //uint32_t counter_id = thread_id;
   int64_t cur_count = __atomic_add_fetch(&pc->local_counters[counter_id].counter, count, __ATOMIC_SEQ_CST);
 
