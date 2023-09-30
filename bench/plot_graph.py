@@ -35,8 +35,11 @@ def plot_churn_overall_throughput(include_lookups=False):
         # Filter out LOOKUP
         if (not include_lookups):
             df = df[df['op'] != 'LOOKUP']
-        df = df.groupby("churn_cycle").agg({"y_0": hmean}) * 1000.0
-        plt.plot(df.index, df["y_0"], label="%s: %.3f" % (d, hmean(df["y_0"])) )
+        df["thrput"] = df["num_ops"] / df["duration"] * 1000.0
+        df["ts_sec"] = df["ts"] / 1e9
+        thrput = (df["num_ops"].sum() / df["duration"].sum()) * 1000.0
+        #df = df.groupby("churn_cycle").agg({"y_0": hmean}) * 1000.0
+        plt.plot(df["ts_sec"], df["thrput"], label="%s: %.3f" % (d, thrput) )
         plt.xlabel("churn cycle" )
         plt.ylabel("throughput (ops/microsec)")
     plt.legend()
@@ -77,21 +80,44 @@ def plot_tombstone_ratio():
     plt.savefig(os.path.join(dir, "plot_churn_tombstones_ratio.png"))
     plt.close()
 
-def plot_churn_op_throuput(op):
+def plot_churn_op_throuput_ts(name, ops):
     plt.figure(figsize=(10,6))
     for d in variants:
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
-        df = df.loc[ (df["op"]==op) ]
+        df = df.loc[ (df["op"].isin(ops)) ]
         if (len(df)==0):
             return
-        plt.plot(df["x_0"], df["y_0"] * 1000.0, label="%s: %.3f" % (d, hmean(df["y_0"] * 1000)))
-        plt.xlabel("churn percentage progress" )
+        df["thrput"] = df["num_ops"] / df["duration"] * 1000.0
+        df["ts_sec"] = df["ts"] / 1e9
+        thrput = (df["num_ops"].sum() / df["duration"].sum()) * 1000.0
+        plt.plot(df["ts_sec"], df["thrput"], label="%s: %.3f" % (d, thrput) )
+        plt.xlabel("test progression (sec)" )
         plt.ylabel("throughput (ops/usec)")
     plt.legend()
-    plt.title(f"CHURN PHASE {op} Throughput")
+    plt.title(f"CHURN PHASE {name} Throughput")
     add_caption()
     plt.tight_layout()
-    plt.savefig(os.path.join(dir, "plot_churn_%s.png" % op))
+    plt.savefig(os.path.join(dir, "plot_churn_xtime_%s.png" % name))
+    plt.close()
+
+def plot_churn_op_throuput_churn(name, ops):
+    plt.figure(figsize=(10,6))
+    for d in variants:
+        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+        df = df.loc[ (df["op"].isin(ops)) ]
+        if (len(df)==0):
+            return
+        thrput = (df["num_ops"].sum() / df["duration"].sum()) * 1000.0
+        grouped = df.groupby("churn_cycle").agg({"num_ops": sum, "duration": sum})
+        grouped["thrput"] = (grouped["num_ops"]/grouped["duration"]) * 1000.0
+        plt.plot(grouped.index, grouped["thrput"], label="%s: %.3f" % (d, thrput) )
+        plt.xlabel("test progression (churn_cycle)" )
+        plt.ylabel("throughput (ops/usec)")
+    plt.legend()
+    plt.title(f"CHURN PHASE {name} Throughput")
+    add_caption()
+    plt.tight_layout()
+    plt.savefig(os.path.join(dir, "plot_churn_%s.png" % name))
     plt.close()
 
 def plot_latency_boxplots(op):
@@ -145,11 +171,19 @@ plt.tight_layout()
 plt.savefig(os.path.join(dir, "plot_insert.png"))
 plt.close()
 
-plot_churn_op_throuput("DELETE")
-plot_churn_op_throuput("INSERT")
-plot_churn_op_throuput("LOOKUP")
-plot_churn_op_throuput("MIXED")
-plot_churn_overall_throughput(include_lookups=True)
+plot_churn_op_throuput_ts("DELETE", ["DELETE"])
+plot_churn_op_throuput_ts("INSERT", ["INSERT"])
+plot_churn_op_throuput_ts("LOOKUP", ["LOOKUP"])
+plot_churn_op_throuput_ts("OVERALL", ["INSERT", "DELETE", "LOOKUP"])
+plot_churn_op_throuput_ts("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"])
+plot_churn_op_throuput_ts("MIXED", ["MIXED"])
+
+plot_churn_op_throuput_churn("DELETE", ["DELETE"])
+plot_churn_op_throuput_churn("INSERT", ["INSERT"])
+plot_churn_op_throuput_churn("LOOKUP", ["LOOKUP"])
+plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"])
+plot_churn_op_throuput_churn("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"])
+plot_churn_op_throuput_churn("MIXED", ["MIXED"])
 plot_tombstone()
 plot_tombstone_ratio()
 
