@@ -35,6 +35,7 @@ extern inline int g_destroy()
 }
 
 extern inline void g_dump_metrics(const std::string &dir) {
+    return 0;
 }
 
 extern inline int g_collect_metadata_stats() {
