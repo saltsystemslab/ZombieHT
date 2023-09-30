@@ -520,6 +520,7 @@ void run_churn(
   write_churn_metadata_to_file(metadata_measures, test_begin, true, metadata_output_file);
 
   for (int i=0; i<nchurns; i++) {
+    g_dump_metrics("ignored");
     ops.clear();
     churn_start_op = 0;
     generate_churn_ops(ops, kv);

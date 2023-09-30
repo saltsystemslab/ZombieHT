@@ -35,7 +35,8 @@ extern inline int g_destroy()
 }
 
 extern inline void g_dump_metrics(const std::string &dir) {
-    return 0;
+    printf("L1:%lu L2:%lu L3: %lu\n ", lv1_balls(&ice), lv2_balls(&ice), lv3_balls(&ice));
+    return;
 }
 
 extern inline int g_collect_metadata_stats() {
