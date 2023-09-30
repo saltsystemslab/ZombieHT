@@ -1216,7 +1216,7 @@ static inline bool iceberg_lv3_remove_internal(iceberg_table * table, KeyType ke
   iceberg_metadata * metadata = &table->metadata;
   iceberg_lv3_list * lists = table->level3[bindex];
 
-  while(__sync_lock_test_and_set(metadata->lv3_locks[bindex] + boffset, 1));
+  // while(__sync_lock_test_and_set(metadata->lv3_locks[bindex] + boffset, 1));
 
   if(metadata->lv3_sizes[bindex][boffset] == 0) return false;
 

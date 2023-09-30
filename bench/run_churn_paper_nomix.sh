@@ -1,4 +1,4 @@
-run_args="-k 64 -q 27 -v 0 -c 600 -w 1342100 -l 26843500 -i 95 -s 1 -t 1 -m 0 -g 50"
+run_args="-k 59 -q 27 -v 0 -c 250 -w 1342100 -l 26843500 -i 95 -s 1 -t 1 -m 0 -g 50"
 
 if [ -z "$1" ]; then
     out_dir="bench_run_nomix"
@@ -9,11 +9,11 @@ fi
 rm -rf $out_dir/*
 
 mkdir -p build
-VARIANTS=("GZHM" "ABSL" "CLHT")
+VARIANTS=("GZHM" "ABSL" "CLHT" "ICEBERG")
 
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p build/$VARIANT
-  cmake . -Bbuild/$VARIANT -DCMAKE_BUILD_TYPE=Release -DVARIANT=$VARIANT
+  cmake . -Bbuild/$VARIANT -DCMAKE_BUILD_TYPE=Release -DVARIANT=$VARIANT -DQF_BITS_PER_SLOT=32
   cmake --build build/$VARIANT -j8
 done
 

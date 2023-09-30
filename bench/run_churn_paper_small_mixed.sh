@@ -9,8 +9,8 @@ fi
 rm -rf $out_dir/*
 
 mkdir -p build
-VARIANTS=("TRHM" "RHM" "GZHM" "GZHM_DELETE" "GRHM" "ICEBERG" "ABSL" "CLHT")
-#VARIANTS=("ICEBERG")
+#VARIANTS=("TRHM" "RHM" "GZHM" "GZHM_DELETE" "GRHM" "ICEBERG" "ABSL" "CLHT")
+VARIANTS=("ICEBERG")
 
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p build/$VARIANT

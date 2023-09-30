@@ -10,11 +10,11 @@ rm -rf $out_dir/*
 
 mkdir -p build
 #VARIANTS=("TRHM" "RHM" "GZHM" "GZHM_DELETE" "GRHM" "ICEBERG" "ABSL" "CLHT")
-VARIANTS=("ICEBERG")
+VARIANTS=("GZHM" "GZHM_DELETE" "ABSL" "ICEBERG" "CLHT")
 
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p build/$VARIANT
-  cmake . -Bbuild/$VARIANT -DCMAKE_BUILD_TYPE=Release  -DVARIANT=$VARIANT
+  cmake . -Bbuild/$VARIANT -DCMAKE_BUILD_TYPE=Release  -DVARIANT=$VARIANT -DQF_BITS_PER_SLOT=16
   cmake --build build/$VARIANT -j8
 done
 
