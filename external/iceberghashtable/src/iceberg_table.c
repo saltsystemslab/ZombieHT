@@ -250,7 +250,8 @@ int iceberg_init(iceberg_table *table, uint64_t log_slots) {
   memset(table, 0, sizeof(*table));
 
   uint64_t total_blocks = 1 << (log_slots - SLOT_BITS);
-  uint64_t total_size_in_bytes = (sizeof(iceberg_lv1_block) + sizeof(iceberg_lv2_block) + sizeof(iceberg_lv1_block_md) + sizeof(iceberg_lv2_block_md)) * total_blocks;
+  uint64_t total_size_in_bytes = (sizeof(iceberg_lv1_block) + sizeof(iceberg_lv2_block) + sizeof(iceberg_lv1_block_md) + sizeof(iceberg_lv2_block_md))   * total_blocks;
+  printf("ICEBERG_MEMORY: %lu\n", total_size_in_bytes);
 
   assert(table);
 

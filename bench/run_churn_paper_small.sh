@@ -1,4 +1,4 @@
-run_args="-k 38 -q 22 -v 0 -c 500 -w 10000 -l 200000 -i 95 -s 1 -t 1 -m 0 -g 50 -z 0"
+run_args="-k 38 -q 22 -v 0 -c 150 -w 10000 -l 200000 -i 95 -s 1 -t 1 -m 0 -g 50 -z 0"
 
 if [ -z "$1" ]; then
     out_dir="bench_run_small"
@@ -9,8 +9,8 @@ fi
 rm -rf $out_dir/*
 
 mkdir -p build
-#VARIANTS=("TRHM" "RHM" "GZHM" "GZHM_DELETE" "GRHM" "ICEBERG" "ABSL" "CLHT")
-VARIANTS=("GZHM" "GZHM_DELETE" "ABSL" "ICEBERG" "CLHT")
+#VARIANTS=("GZHM" "GZHM_DELETE" "ABSL" "ICEBERG" "CLHT")
+VARIANTS=("ABSL" "ICEBERG" "GZHM" "CLHT")
 
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p build/$VARIANT

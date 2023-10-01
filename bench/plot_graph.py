@@ -13,12 +13,13 @@ variants = next(os.walk(dir))[1]
 f = open("%s/%s/test_params.txt" % (dir, variants[0]), "r")
 
 lines = f.readlines()
-key_bits = int(lines[0])
-quotient_bits = int(lines[1])
-value_bits = int(lines[2])
-load_factor = int(lines[3])
-churn_cycles = int(lines[4])
-churn_ops = int(lines[5]) 
+memory_usage = int(lines[0])
+key_bits = int(lines[1])
+quotient_bits = int(lines[2])
+value_bits = int(lines[3])
+load_factor = int(lines[4])
+churn_cycles = int(lines[5])
+churn_ops = int(lines[6]) 
 
 churn_points = []
 for l in lines[6:]: 
@@ -120,6 +121,26 @@ def plot_churn_op_throuput_churn(name, ops):
     plt.savefig(os.path.join(dir, "plot_churn_%s.png" % name))
     plt.close()
 
+def plot_memory_usage():
+    data = []
+    labels = []
+    for d in variants:
+        f_variant = open("%s/%s/test_params.txt" % (dir, d), "r")
+        lines = f_variant.readlines()
+        memory_usage = int(lines[0])
+        data.append(memory_usage)
+        labels.append(d)
+        print(memory_usage)
+    plt.bar(labels, data)
+    plt.yscale('log')
+    plt.ylabel("Size (B)")
+    plt.title("Size usage (B)")
+    add_caption()
+    plt.title(f"Memory Usage")
+    plt.tight_layout()
+    plt.savefig(os.path.join(dir, "plot_memory_usage.png"))
+    plt.close()
+
 def plot_latency_boxplots(op):
     data = []
     labels = []
@@ -194,3 +215,4 @@ plot_latency_boxplots("MIXED")
 
 plot_distribution('home_slot_dist')
 plot_distribution('tombstone_dist')
+plot_memory_usage()

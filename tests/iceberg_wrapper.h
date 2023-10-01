@@ -34,6 +34,11 @@ extern inline int g_destroy()
 	return 0;
 }
 
+extern inline uint64_t g_memory_usage()
+{
+    return ice.metadata.total_size_in_bytes;
+}
+
 extern inline void g_dump_metrics(const std::string &dir) {
     printf("L1:%lu L2:%lu L3: %lu\n ", lv1_balls(&ice), lv2_balls(&ice), lv3_balls(&ice));
     return;

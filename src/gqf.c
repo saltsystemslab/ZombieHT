@@ -115,6 +115,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   qf->metadata->reserved = 0;
   qf->metadata->hash_mode = hash;
   qf->metadata->total_size_in_bytes = size;
+  printf("%lu\n", size);
   qf->metadata->seed = seed;
   qf->metadata->nslots = num_slots;
   qf->metadata->xnslots = xnslots;

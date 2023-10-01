@@ -36,6 +36,11 @@ extern inline int g_destroy()
 	return 0;
 }
 
+extern inline uint64_t g_memory_usage()
+{
+	return g_map.get_size();
+}
+
 extern inline void g_dump_metrics(const std::string &dir) {
 	printf("%lu %lu %f\n", g_map.size(), g_map.capacity(), g_map.load_factor());
 }

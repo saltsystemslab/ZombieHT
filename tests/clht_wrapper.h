@@ -38,6 +38,11 @@ extern inline int g_destroy()
 	return 0;
 }
 
+extern inline uint64_t g_memory_usage()
+{
+	return clht_size_mem(hm->ht);
+}
+
 extern inline void g_dump_metrics(const std::string &dir) {
     return;
 }
