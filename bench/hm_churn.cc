@@ -523,7 +523,7 @@ void run_churn(
     ops.clear();
     churn_start_op = 0;
     generate_churn_ops(ops, kv);
-    printf("Running Churn cycle: %d\n", i);
+    fprintf(LOG, "Running Churn cycle: %d\n", i);
     should_measure_latency = (nchurns - i < churn_window_for_latency);
     if (mixed_workload) {
       int nchurn_ops = nchurn_insert_ops + nchurn_delete_ops + nchurn_lookup_ops;
@@ -677,11 +677,11 @@ void churn_test() {
   generate_load_ops(ops, kv);
 
   g_init(num_slots, key_bits, value_bits, max_load_factor);
+  write_test_params();
   // LOAD PHASE.
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
   run_churn(ops, kv, num_initial_load_keys, filename_churn_thrput, filename_churn_latency, filename_churn_metadata);
-  write_test_params();
   g_dump_metrics(dir);
   g_destroy();
 }
