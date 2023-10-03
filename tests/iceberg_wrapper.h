@@ -10,7 +10,9 @@
 iceberg_table ice;
 
 extern inline int g_init(uint64_t nslots, uint64_t key_size, uint64_t value_size, float max_load_factor) {
-    iceberg_init(&ice, nslots);
+    int log_slots = 0;
+    while((1ULL << log_slots) < nslots) log_slots++;
+    iceberg_init(&ice, log_slots);
 	return 0;
 }
 
