@@ -1,5 +1,6 @@
 #!/bin/bash
 
-./bench/run_churn_paper_small.sh
-./bench/run_churn_paper_nomix.sh &> report_nomix.txt
-./bench/run_churn_paper_mixed.sh &> report_mix.txt
+./bench/paper/gzhm_external_latency.sh
+./bench/paper/gzhm_variants_latency.sh
+./bench/paper/gzhm_external.sh
+./bench/paper/gzhm_variants.sh
