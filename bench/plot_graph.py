@@ -174,7 +174,7 @@ def plot_distribution(metric):
         columns = df.columns
         df=df.sort_values(columns[0])
         df.to_csv(os.path.join(csv_dir, f"{d}_{metric}.csv"))
-        plt.bar(df[columns[0]] - (bar_idx * total_bar_width/num_variants), df[columns[1]], label=d, width=total_bar_width/num_variants) 
+        plt.plot(df[columns[0]] - (bar_idx * total_bar_width/num_variants), df[columns[1]], label=d) 
         bar_idx = bar_idx + 1 
         plt.title("%s Distribution" % (columns[0]))
     plt.yscale('log')
@@ -220,4 +220,5 @@ plot_latency_boxplots_group(["DELETE", "INSERT", "LOOKUP"])
 
 plot_distribution('home_slot_dist')
 plot_distribution('tombstone_dist')
+plot_distribution('cluster_len')
 plot_memory_usage()

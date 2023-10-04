@@ -108,66 +108,84 @@ int hm_lookup(const QF *hm, uint64_t key, uint64_t *value, uint8_t flags) {
 }
 
 void hm_dump_metrics(const QF *qf, const std::string &dir) {
-  // For each quotient print distances from home slot
-  // For each cluster, print tombstone distances - across all blocks.
+  // For each slot count the distance to nearest tombstone/free slot ahead of it.
+  // For each slot count the distance to its home slot.
   std::unordered_map<uint64_t, uint64_t> hsd_count;
-  std::unordered_map<uint64_t, uint64_t> td_count;
+  std::unordered_map<uint64_t, uint64_t> tsd_count;
+  std::unordered_map<uint64_t, uint64_t> cluster_count;
+
   uint64_t quotient = 0;
-  uint64_t slot = 0;
+  uint64_t slot_idx = 0;
+  uint64_t home_slot_distance = 0;
+  uint64_t num_items_since_tombstone = 0;
   uint64_t cluster_len = 0;
-  uint64_t num_free_slots = 0;
-  uint64_t prev_tombstone_slot_idx = 0;
-  while (quotient < qf->metadata->nslots) {
-    slot = std::max(quotient, slot);
 
-    if (!is_occupied(qf, quotient) && slot == quotient) {
-      num_free_slots++;
-    }
+  while (quotient < qf->metadata->xnslots) {
+    slot_idx = std::max(quotient, slot_idx);
 
-    if (slot == quotient && cluster_len > 0) {
-      cluster_len = 0;
-      #ifdef QF_TOMBSTONE
-      uint64_t td_dist = slot - prev_tombstone_slot_idx;
-      td_count[td_dist]++;
-      prev_tombstone_slot_idx = slot;
-      #endif
-    }
-
-    // Search for runend. 
-    while (is_occupied(qf, quotient) && !is_runend(qf, slot)) {
-      #ifdef QF_TOMBSTONE
-      if (is_tombstone(qf, slot)) {
-        uint64_t td_dist = slot - prev_tombstone_slot_idx;
-        td_count[td_dist]++;
-        prev_tombstone_slot_idx = slot;
+    if (!is_occupied(qf, quotient) && slot_idx == quotient) { // End of a cluster.
+      if (cluster_len) cluster_count[cluster_len]++;
+      #ifndef QF_TOMBSTONE
+      // Mark pushing distance for this cluster.
+      while (cluster_len) {
+        // For RHM, inserting inside anywhere in a cluster,
+        // requires pushing until cluster len.
+        tsd_count[cluster_len]++;
+        cluster_len--;
       }
       #endif
-      slot++;
-      cluster_len++;
+      cluster_len = 0;
     }
-    uint64_t home_slot_distance = slot-quotient;
-    hsd_count[home_slot_distance]++;
+    // printf("%ld [%ld", quotient, slot_idx);
+    // Walk all elements in this run. 
+    // Also, runend cannot be a tombstone, so we can ignore that.
+    while (is_occupied(qf, quotient)) {
+      cluster_len++;
+      #ifdef QF_TOMBSTONE
+      if (is_tombstone(qf, slot_idx)) {
+        // num_items seen so far.
+        while(num_items_since_tombstone) {
+          tsd_count[num_items_since_tombstone]++;
+          num_items_since_tombstone--;
+        }
+      } else {
+        num_items_since_tombstone++;
+      }
+      #endif
+      home_slot_distance = slot_idx-quotient;
+      hsd_count[home_slot_distance]++;
+      slot_idx++;
+      if (is_runend(qf, slot_idx-1)) {
+        break;
+      }
+    } 
+    //printf(" %ld]\n", slot_idx);
     quotient++;
   }
 
-  std::string home_slot_distance = dir + "/home_slot_dist.txt";
+
+  std::string home_slot_distance_file_path = dir + "/home_slot_dist.txt";
   FILE *fd;
-  fd = fopen(home_slot_distance.c_str(), "w");
+  fd = fopen(home_slot_distance_file_path.c_str(), "w");
   fprintf(fd, "HomeSlotDistance Count\n");
   for (auto it: hsd_count) {
     fprintf(fd, "%ld %ld\n", it.first, it.second);
   }
   fclose(fd);
 
-  #if QF_TOMBSTONE
-  std::string tombstone_distance = dir + "/tombstone_dist.txt";
-  fd = fopen(tombstone_distance.c_str(), "w");
+  std::string tombstone_distance_path = dir + "/tombstone_dist.txt";
+  fd = fopen(tombstone_distance_path.c_str(), "w");
   fprintf(fd, "TombstoneDistance Count\n");
-  for (auto it: td_count) {
+  for (auto it: tsd_count) {
     fprintf(fd, "%ld %ld\n", it.first, it.second);
   }
   fclose(fd);
-#endif
 
+  std::string cluster_len_path = dir + "/cluster_len.txt";
+  fd = fopen(cluster_len_path.c_str(), "w");
+  fprintf(fd, "ClusterLen Count\n");
+  for (auto it: cluster_count) {
+    fprintf(fd, "%ld %ld\n", it.first, it.second);
+  }
+  fclose(fd);
 }
- 
