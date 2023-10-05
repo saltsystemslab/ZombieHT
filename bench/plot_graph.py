@@ -36,6 +36,8 @@ def add_caption():
 def plot_tombstone():
     plt.figure(figsize=(10,6))
     for d in variants:
+        if not os.path.exists('./%s/%s/churn_metadata.txt'% (dir, d)):
+            continue
         df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), delim_whitespace=True)
         plt.plot(df["churn_cycle"], df["tombstones"], label=d)
         plt.xlabel("churn cycle" )
@@ -50,6 +52,8 @@ def plot_tombstone():
 def plot_tombstone_ratio():
     plt.figure(figsize=(10,6))
     for d in variants:
+        if not os.path.exists('./%s/%s/churn_metadata.txt' % (dir, d)):
+            continue
         df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), delim_whitespace=True)
         plt.plot(df["churn_cycle"], df["tombstones"]/(df["tombstones"] + df["occupied"]), label=d)
         plt.xlabel("churn cycle" )
@@ -64,6 +68,8 @@ def plot_tombstone_ratio():
 def plot_churn_op_throuput_ts(name, ops):
     plt.figure(figsize=(10,6))
     for d in variants:
+        if not os.path.exists('./%s/%s/churn_thrput.txt'% (dir, d)):
+            continue
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[ (df["op"].isin(ops)) ]
         if (len(df)==0):
@@ -81,9 +87,11 @@ def plot_churn_op_throuput_ts(name, ops):
     plt.savefig(os.path.join(dir, "plot_churn_xtime_%s.png" % name))
     plt.close()
 
-def plot_churn_op_throuput_churn(name, ops):
+def plot_churn_op_throuput_churn(name, ops, csv=False):
     plt.figure(figsize=(10,6))
     for d in variants:
+        if not os.path.exists('./%s/%s/churn_thrput.txt'% (dir, d)):
+            continue
         df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[ (df["op"].isin(ops)) ]
         if (len(df)==0):
@@ -93,7 +101,8 @@ def plot_churn_op_throuput_churn(name, ops):
         grouped["thrput"] = (grouped["num_ops"]/grouped["duration"]) * 1000.0
         plt.plot(grouped.index, grouped["thrput"], label="%s: %.3f" % (d, thrput) )
         plt.xlabel("test progression (churn_cycle)" )
-        grouped.to_csv(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"))
+        if csv:
+            grouped.to_csv(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"))
         plt.ylabel("throughput (ops/usec)")
     plt.legend()
     plt.title(f"CHURN PHASE {name} Throughput")
@@ -126,6 +135,8 @@ def plot_latency_boxplots(op):
     data = []
     labels = []
     for d in variants:
+        if not os.path.exists('./%s/%s/churn_latency.txt'% (dir, d)):
+            continue
         df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
         df = df.loc[(df["op"]==op)]
         if (len(df)==0):
@@ -146,6 +157,8 @@ def plot_latency_boxplots_group(ops):
     labels = []
     for op in ops:
         for d in variants:
+            if not os.path.exists('./%s/%s/churn_latency.txt' % (dir, d) ):
+                continue
             df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
             df = df.loc[(df["op"]==op)]
             if (len(df)==0):
@@ -184,7 +197,10 @@ def plot_distribution(metric):
 
 plt.figure(figsize=(20,6))
 for d in variants:
+    if not os.path.exists('./%s/%s/load.txt' % (dir, d)):
+        continue
     df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
+    df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
     plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
     plt.xlabel("percent of keys inserted" )
     plt.ylabel("throughput")
@@ -195,19 +211,69 @@ plt.tight_layout()
 plt.savefig(os.path.join(dir, "plot_insert.png"))
 plt.close()
 
-plot_churn_op_throuput_ts("DELETE", ["DELETE"])
-plot_churn_op_throuput_ts("INSERT", ["INSERT"])
-plot_churn_op_throuput_ts("LOOKUP", ["LOOKUP"])
-plot_churn_op_throuput_ts("OVERALL", ["INSERT", "DELETE", "LOOKUP"])
-plot_churn_op_throuput_ts("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"])
-plot_churn_op_throuput_ts("MIXED", ["MIXED"])
+def humanize_nanoseconds(sec):
+    time_str = ('%.2f ns') % (sec)
+    if (sec > 1000):
+        time_str = ('%.2f us') % (sec / 1000.0)
+    if (sec > 1000_000):
+        time_str = ('%.2f ms') % (sec / 1000_000.0)
+    return time_str
+
+def latency_distribution(dir, ops):
+    summaries = pd.DataFrame()
+    all_summaries = pd.DataFrame()
+    for op in ops:
+        for d in variants:
+            df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
+            df = df.loc[(df["op"]==op)]
+            if (len(df)==0):
+                continue
+            summaries[f'{d}'] = df['latency'].describe(percentiles=[.50, .90, .99, .9999])
+        print(op)
+        hsum = pd.DataFrame()
+        for column in summaries.columns:
+            hsum[column] = (summaries[column].map(lambda x : humanize_nanoseconds(x)))
+        with open(os.path.join(csv_dir, f"{op}.tex"), "w") as table_file:
+            table_file.write(hsum.to_latex())
+
+def humanize_bytes(bytes):
+    bytes_str = ('%d B') % (bytes)
+    if (bytes > 1024):
+        bytes_str = ('%d KB') % (bytes / (1024))
+    if (bytes > 1024 * 1024):
+        bytes_str = ('%d MB') % (bytes / (1024* 1024))
+    if (bytes > 1024 * 1024 * 1024):
+        bytes_str = ('%d GB') % (bytes / (1024* 1024 * 1024))
+    return bytes_str
+
+def memory_usage(dir):    
+    data = []
+    labels = []
+    df = pd.DataFrame()
+    for d in variants:
+        f_variant = open("%s/%s/test_params.txt" % (dir, d), "r")
+        lines = f_variant.readlines()
+        memory_usage = int(lines[0])
+        data.append(memory_usage)
+        labels.append(d)
+    df['Hashmap'] = labels
+    df['USAGE'] = data
+    df['Size'] = df['USAGE'].map(lambda x: humanize_bytes(x))
+    df['Space Efficiency'] = df['USAGE'].map(lambda x: ((95 * (2**22) * 16) / x))
+    with open(os.path.join(csv_dir, f"mem.tex"), "w") as table_file:
+            table_file.write(df[['Hashmap', "Size", "Space Efficiency"]].to_latex(float_format="%.2f"))
+
+    print(df[['Hashmap', "Size", "Space Efficiency"]].to_latex(float_format="%.2f"))
+
+memory_usage(dir)
+latency_distribution(dir, ["DELETE", "INSERT", "LOOKUP"])
 
 plot_churn_op_throuput_churn("DELETE", ["DELETE"])
 plot_churn_op_throuput_churn("INSERT", ["INSERT"])
 plot_churn_op_throuput_churn("LOOKUP", ["LOOKUP"])
-plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"])
+plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True)
 plot_churn_op_throuput_churn("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"])
-plot_churn_op_throuput_churn("MIXED", ["MIXED"])
+plot_churn_op_throuput_churn("MIXED", ["MIXED"], csv=True)
 plot_tombstone()
 plot_tombstone_ratio()
 
