@@ -53,6 +53,11 @@ std::string dir = "./bench_run/";
 uint64_t num_slots = 0;
 uint64_t num_initial_load_keys = 0;
 bool is_silent = true;
+uint64_t false_lookups;
+uint64_t false_deletes;
+uint64_t total_lookups;
+uint64_t total_deletes;
+uint64_t total_inserts;
 FILE *LOG;
 
 struct HmMetadataMeasure {
@@ -62,12 +67,18 @@ struct HmMetadataMeasure {
   uint64_t num_tombstones;
 };
 
+// Rename to Measure, this has more than throughput
 struct ThrputMeasure {
   int churn_cycle;
   std::string operation;
   time_point<high_resolution_clock> start_ts;
   time_point<high_resolution_clock> end_ts;
   uint64_t num_ops;
+  uint64_t false_lookups;
+  uint64_t false_deletes;
+  uint64_t total_lookups;
+  uint64_t total_deletes;
+  uint64_t total_inserts;
   double thrput() {
     return 1.0 * num_ops / ((end_ts - start_ts).count());
   }
@@ -104,14 +115,19 @@ void write_churn_thrput_by_phase_to_file(
   FILE *fp = fopen(filename.c_str(), "a");
   if(write_headers) {
     printf("Writing Log\n");
-    fprintf(fp, "churn_cycle  ts  duration   num_ops  op\n");
+    fprintf(fp, "churn_cycle  ts  duration   num_ops  false_lookups total_lookups false_delete total_delete total_inserts op\n");
   }
   for (auto measure: measures) {
-      fprintf(fp, "%d %lu %lu %lu %s\n", 
+      fprintf(fp, "%d %lu %lu %lu %lu %lu %lu %lu %lu %s\n", 
         measure.churn_cycle,  
         (measure.end_ts- test_begin).count(),  // ts
         (measure.end_ts - measure.start_ts).count(),  //duration
         measure.num_ops,
+        measure.false_lookups,
+        measure.total_lookups,
+        measure.false_deletes,
+        measure.total_deletes,
+        measure.total_inserts,
         measure.operation.c_str());
   }
   fclose(fp);
@@ -308,6 +324,11 @@ void parseArgs(int argc, char **argv) {
 
   num_slots = (1ULL << quotient_bits);
   num_initial_load_keys = ((1ULL << quotient_bits) * initial_load_factor / 100);
+  false_lookups = 0;
+  false_deletes = 0;
+  total_lookups = 0;
+  total_deletes = 0;
+  total_inserts = 0;
 }
 
 void generate_load_ops(
@@ -427,15 +448,24 @@ inline int execute_hm_op(
   vector<hm_op> &ops,
   uint64_t op_index){
   uint64_t lookup_value;
+  int ret = -1;
   switch (ops[op_index].op) {
     case LOOKUP:
-      return g_lookup(ops[op_index].key, &lookup_value);
+      total_lookups++;
+      ret = g_lookup(ops[op_index].key, &lookup_value);
+      if (ret) false_lookups++;
+      break;
     case INSERT:
-      return g_insert(ops[op_index].key, ops[op_index].value);
+      total_inserts++;
+      ret = g_insert(ops[op_index].key, ops[op_index].value);
+      break;
     case DELETE:
-      return g_remove(ops[op_index].key);
+      total_deletes++;
+      ret = g_remove(ops[op_index].key);
+      if (ret) false_deletes++;
+      break;
   }
-  return -1;
+  return ret;
 }
 
 
@@ -462,7 +492,9 @@ int profile_ops(
             operation,
             throughput_measure_begin, 
             throughput_measure_end,
-            throughput_bucket_size
+            throughput_bucket_size,
+            false_lookups,
+            false_deletes
           });
       }
       throughput_measure_begin = high_resolution_clock::now();
@@ -492,7 +524,12 @@ int profile_ops(
       operation,
       throughput_measure_begin, 
       throughput_measure_end,
-      ops_executed % throughput_bucket_size == 0 ? throughput_bucket_size : ops_executed % throughput_bucket_size
+      ops_executed % throughput_bucket_size == 0 ? throughput_bucket_size : ops_executed % throughput_bucket_size,
+      false_lookups,
+      false_deletes,
+      total_lookups,
+      total_deletes,
+      total_inserts
     });
   }
   return 0;
