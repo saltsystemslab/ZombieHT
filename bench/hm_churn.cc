@@ -47,6 +47,7 @@ int churn_latency_bucket_size = 10;
 int churn_thrput_resolution = 4;
 int mixed_workload = 0;
 int log_commit_freq = 10; // Commit results every commit_freq cycles.
+int metadata_dump_freq = 200; // Dump the metadata every 200 churn cycles.
 int churn_window_for_latency = 0;
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
@@ -636,6 +637,9 @@ void run_churn(
       write_churn_latency_by_phase_to_file(latency_measures, false, latency_output_file);
       write_churn_metadata_to_file(metadata_measures, test_begin, false, metadata_output_file);
     }
+    if (i % metadata_dump_freq == 0) {
+      g_dump_metrics(dir);
+    }
   }
   write_churn_thrput_by_phase_to_file(thrput_measures, test_begin, false, thrput_output_file);
   write_churn_latency_by_phase_to_file(latency_measures, false, latency_output_file);
@@ -719,7 +723,6 @@ void churn_test() {
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
   run_churn(ops, kv, num_initial_load_keys, filename_churn_thrput, filename_churn_latency, filename_churn_metadata);
-  g_dump_metrics(dir);
   g_destroy();
 }
 
