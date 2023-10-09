@@ -10,13 +10,10 @@ if len(sys.argv) > 1:
     dir = sys.argv[1]
 variants = next(os.walk(dir))[1]
 
-csv_dir = os.path.join('csv')
-os.makedirs(csv_dir, exist_ok=True)
-csv_dir = os.path.join('csv', dir)
+csv_dir = os.path.join(sys.argv[2], 'csv', dir)
 os.makedirs(csv_dir, exist_ok=True)
 
 f = open("%s/%s/test_params.txt" % (dir, variants[0]), "r")
-
 lines = f.readlines()
 memory_usage = int(lines[0])
 key_bits = int(lines[1])
@@ -25,6 +22,11 @@ value_bits = int(lines[3])
 load_factor = int(lines[4])
 churn_cycles = int(lines[5])
 churn_ops = int(lines[6]) 
+
+def load_factor(variant):
+    f = open("%s/%s/test_params.txt" % (dir, variant), "r")
+    lines = f.readlines()
+    return int(lines[4])
 
 churn_points = []
 for l in lines[6:]: 
@@ -87,6 +89,7 @@ def plot_churn_op_throuput_ts(name, ops):
     plt.savefig(os.path.join(dir, "plot_churn_xtime_%s.png" % name))
     plt.close()
 
+
 def plot_churn_op_throuput_churn(name, ops, csv=False):
     plt.figure(figsize=(10,6))
     for d in variants:
@@ -120,7 +123,6 @@ def plot_memory_usage():
         memory_usage = int(lines[0])
         data.append(memory_usage)
         labels.append(d)
-        print(memory_usage)
     plt.bar(labels, data)
     plt.yscale('log')
     plt.ylabel("Size (B)")
@@ -215,8 +217,6 @@ def humanize_nanoseconds(sec):
     time_str = ('%.2f ns') % (sec)
     if (sec > 1000):
         time_str = ('%.2f us') % (sec / 1000.0)
-    if (sec > 1000_000):
-        time_str = ('%.2f ms') % (sec / 1000_000.0)
     return time_str
 
 def latency_distribution(dir, ops):
@@ -229,7 +229,6 @@ def latency_distribution(dir, ops):
             if (len(df)==0):
                 continue
             summaries[f'{d}'] = df['latency'].describe(percentiles=[.50, .90, .99, .9999])
-        print(op)
         hsum = pd.DataFrame()
         for column in summaries.columns:
             hsum[column] = (summaries[column].map(lambda x : humanize_nanoseconds(x)))
@@ -239,31 +238,47 @@ def latency_distribution(dir, ops):
 def humanize_bytes(bytes):
     bytes_str = ('%d B') % (bytes)
     if (bytes > 1024):
-        bytes_str = ('%d KB') % (bytes / (1024))
+        bytes_str = ('%.2lf KB') % (bytes / (1024.0))
     if (bytes > 1024 * 1024):
-        bytes_str = ('%d MB') % (bytes / (1024* 1024))
+        bytes_str = ('%.2lf MB') % (bytes / (1024.0 * 1024))
     if (bytes > 1024 * 1024 * 1024):
-        bytes_str = ('%d GB') % (bytes / (1024* 1024 * 1024))
+        bytes_str = ('%.2lf GB') % (bytes / (1024.0 * 1024 * 1024))
     return bytes_str
+
+def get_thrput(d):
+    df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+    thrput = (df["num_ops"].sum() / df["duration"].sum()) * 1000.0
+    return thrput
 
 def memory_usage(dir):    
     data = []
     labels = []
+    hm_type = []
+    lfs = []
+    tput = []
     df = pd.DataFrame()
     for d in variants:
         f_variant = open("%s/%s/test_params.txt" % (dir, d), "r")
         lines = f_variant.readlines()
         memory_usage = int(lines[0])
+        tput.append(get_thrput(d))
         data.append(memory_usage)
         labels.append(d)
+        hm_type.append(d[0:3]) # Hack, first three characters to identify hashmap type for space efficiency study.
+        lfs.append(load_factor(d))
     df['Hashmap'] = labels
+    df['hm_type'] = hm_type
     df['USAGE'] = data
+    df['load_factor'] = lfs
+    df['throughput'] = tput
     df['Size'] = df['USAGE'].map(lambda x: humanize_bytes(x))
-    df['Space Efficiency'] = df['USAGE'].map(lambda x: ((95 * (2**22) * 16) / x))
+    df['Space Efficiency'] = df['load_factor'] * ((2**quotient_bits) * 16) / df['USAGE']
+    #df['Space Efficiency'] = df['USAGE'].map(lambda x: ((load_factor * (2**quotient_bits) * 16) / x))
     with open(os.path.join(csv_dir, f"mem.tex"), "w") as table_file:
-            table_file.write(df[['Hashmap', "Size", "Space Efficiency"]].to_latex(float_format="%.2f"))
-
-    print(df[['Hashmap', "Size", "Space Efficiency"]].to_latex(float_format="%.2f"))
+            table_file.write(df[['Hashmap', "load_factor", "Size", "Space Efficiency"]].to_latex(float_format="%.2f"))
+    print(df[["hm_type", "load_factor", "Size", "Space Efficiency", "throughput"]].to_markdown())
+    print(pd.pivot(df, index="Space Efficiency", columns="hm_type", values="throughput").to_markdown())
+    print(pd.pivot(df, index="load_factor", columns="hm_type", values="throughput").to_markdown())
 
 memory_usage(dir)
 latency_distribution(dir, ["DELETE", "INSERT", "LOOKUP"])
