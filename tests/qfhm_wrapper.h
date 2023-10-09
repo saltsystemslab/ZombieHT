@@ -23,12 +23,16 @@ extern inline int g_insert(uint64_t key, uint64_t val)
 
 extern inline int g_lookup(uint64_t key, uint64_t *val)
 {
-	return hm_lookup(&g_hashmap, key, val, QF_NO_LOCK | QF_KEY_IS_HASH);
+	int ret = hm_lookup(&g_hashmap, key, val, QF_NO_LOCK | QF_KEY_IS_HASH);
+	if (ret == QF_DOESNT_EXIST) return QF_DOESNT_EXIST;
+	return 0;
 }
 
 extern inline int g_remove(uint64_t key)
 {
-	return hm_remove(&g_hashmap, key, QF_NO_LOCK | QF_KEY_IS_HASH);
+	int ret = hm_remove(&g_hashmap, key, QF_NO_LOCK | QF_KEY_IS_HASH);
+	if (ret == QF_DOESNT_EXIST) return QF_DOESNT_EXIST;
+	return 0;
 }
 
 extern inline int g_destroy()
@@ -48,5 +52,4 @@ extern inline void g_dump_metrics(const std::string &dir) {
 extern inline int g_collect_metadata_stats() {
   return g_hashmap.metadata->nslots;
 }
-
 #endif
