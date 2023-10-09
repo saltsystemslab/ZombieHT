@@ -15,7 +15,7 @@ fi
 
 # Second flag is workload (mixed for throughput, nomixed for latency)
 if [ $2 -eq 0 ]; then
-  churn_args="-c 50 -m 1"
+  churn_args="-c 100 -m 1"
   latency=""
 elif [ $2 -eq 1 ]; then
   churn_args="-c 80 -m 0 -z 50"
@@ -25,9 +25,10 @@ else
   exit
 fi
 
-VARIANTS=("ABSL" "ICEBERG" "CLHT" "GZHM")
+VARIANTS=("GZHM")
+PTS_LIST=("1.5" "2.0" "2.5")
 
-out_dir="sponge/$(date +%s)_gzhm_external${latency}_$1"
+out_dir="sponge/gzhm_pts${latency}_$1"
 build_dir=${out_dir}/build
 run_dir=${out_dir}/run
 result_dir=${out_dir}/result
@@ -41,15 +42,19 @@ mkdir -p ${run_dir}
 mkdir -p ${result_dir}
 
 for VARIANT in "${VARIANTS[@]}"; do
-  mkdir -p ${build_dir}/$VARIANT
-  cmake . -B${build_dir}/$VARIANT -DCMAKE_BUILD_TYPE=Release -DVARIANT=$VARIANT -DQF_BITS_PER_SLOT=${qf_bits_per_slot} -DPTS=1.5
-  cmake --build ${build_dir}/$VARIANT -j8
+for PTS in "${PTS_LIST[@]}"; do
+  mkdir -p ${build_dir}/${VARIANT}_${PTS}
+  cmake . -B${build_dir}/${VARIANT}_${PTS} -DCMAKE_BUILD_TYPE=Release -DVARIANT=$VARIANT -DQF_BITS_PER_SLOT=${qf_bits_per_slot} -DPTS=${PTS}
+  cmake --build ${build_dir}/${VARIANT}_${PTS} -j8
+done
 done
 
 for VARIANT in "${VARIANTS[@]}"; do
-  mkdir -p ${run_dir}/$VARIANT
-  echo ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
-  numactl -N 0 -m 0 ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
+for PTS in "${PTS_LIST[@]}"; do
+  mkdir -p ${run_dir}/${VARIANT}_${PTS}
+  echo ./${build_dir}/${VARIANT}_${PTS}/hm_churn $run_args $churn_args -d ${run_dir}/${VARIANT}_${PTS}/
+  numactl -N 0 -m 0 ./${build_dir}/${VARIANT}_${PTS}/hm_churn $run_args $churn_args -d ${run_dir}/${VARIANT}_${PTS}/
+done
 done
 
 echo python3 ./bench/plot_graph.py ${run_dir} 
