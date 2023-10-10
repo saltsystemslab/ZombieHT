@@ -122,8 +122,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   qf->metadata->rebuild_run = 0;
   qf->metadata->tombstone_space = tombstone_space;
   qf->metadata->nrebuilds = nrebuilds;
-  qf->metadata->rebuild_interval =
-      nrebuilds == 0 ? 0 : ((xnslots / nrebuilds) + 1);
+  qf->metadata->rebuild_interval = 1.5 * tombstone_space;
   qf->metadata->rebuild_cd = nrebuilds;
 #endif
   qf->metadata->key_bits = key_bits;
