@@ -131,6 +131,22 @@ static inline int _insert_pts(QF *const qf, size_t run) {
   return _insert_ts_at(qf, index, run);
 }
 
+/* Return num of tombstones in range [start, start+end). */
+static inline size_t tombstones_cnt(const QF *qf, size_t start, size_t len) {
+  size_t cnt = 0;
+  size_t end = start + len;
+  size_t block_i = start / QF_SLOTS_PER_BLOCK;
+  size_t bstart = start % QF_SLOTS_PER_BLOCK;
+  do {
+    size_t word = get_block(qf, block_i)->tombstones[0];
+    cnt += popcntv(word, bstart);
+    block_i++;
+    bstart = 0;
+  } while ((block_i) * QF_SLOTS_PER_BLOCK <= end);
+  size_t word = get_block(qf, block_i-1)->tombstones[0];
+  cnt -= popcntv(word, end % QF_SLOTS_PER_BLOCK);
+  return cnt;
+}
 
 /* Push tombstones over an existing run (has at least one non-tombstone).
  * Range of pushing tombstones is [push_start, push_end).
@@ -138,6 +154,32 @@ static inline int _insert_pts(QF *const qf, size_t run) {
  * After this, push_start-1 is the end of the run.
  */
 static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
+  // Get the first runend after push_end.
+  int runend = runends_select(qf, *push_end, 0);
+  int nt = tombstones_cnt(qf, *push_end, runend-*push_end+1);
+  if (nt == 0) {
+    size_t push_len = (*push_end - *push_start);
+    // Exit early if push_len is 0, in this case there is nothing to actually do as there
+    // are no tombstones to collect. It will also avoid underflow errors.
+    if (push_len == 0) {
+      *push_end = runend + 1;
+      *push_start = *push_end;
+      return;
+    }
+    reset_tombstone_block(qf, *push_start, *push_end-1);
+    // Shift all remainders from rest of run into push slot.
+    shift_remainders_left(qf, *push_end, runend, push_len);
+    *push_end = runend + 1;
+    *push_start = *push_end - push_len;
+
+    set_tombstone_block(qf, *push_start, *push_end-1);
+    // Update runend of run we just pushed over.
+    RESET_R(qf, *push_end - 1);
+    SET_R(qf, *push_start - 1);
+    return;
+  }
+
+  // We have to shift slot by slot to collect tombstones.
   do {
     // push 1 slot at a time.
     if (!is_tombstone(qf, *push_end)) {

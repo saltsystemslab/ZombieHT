@@ -614,6 +614,7 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
           &get_block(qf, empty_block)->slots[start_offset],
           (empty_offset - start_offset) * sizeof(qf->blocks[0].slots[0]));
 }
+
 #else
 
 #define REMAINDER_WORD(qf, i)                                                  \
@@ -643,6 +644,13 @@ static inline void shift_remainders(QF *qf, const uint64_t start_index,
 }
 
 #endif
+static inline void shift_remainders_left(QF *qf, uint64_t start_index,
+                                    uint64_t end_index, int dist) {
+    // TODO: Make this a memmove.
+    for (size_t cur_idx = start_index; cur_idx <= end_index; cur_idx++) {
+      set_slot(qf, cur_idx-dist, get_slot(qf, cur_idx));
+    }
+}
 static inline void qf_dump_block_long(const QF *qf, uint64_t i) {
   uint64_t j;
 
@@ -982,4 +990,43 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
 }
 #endif
 
-#endif
+// Reset all tombstone bits from [from_index, to_index]
+static inline void reset_tombstone_block(QF *qf, size_t from_index, size_t to_index) {
+  size_t from_block, target_index, block_end_index;
+  from_block = from_index / QF_SLOTS_PER_BLOCK;
+  block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  while (block_end_index <= to_index) {
+    // In from_b, reset all bits from (from_index to target_index)
+    // TODO - do one bitop.
+    for (size_t i=from_index; i <= block_end_index; i++) {
+      RESET_T(qf, i);
+    }
+
+    // from_index = target_index + 1
+    from_index = block_end_index + 1;
+    if (from_index > to_index) break;
+    from_block++;
+    block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  }
+}
+
+static inline void set_tombstone_block(QF *qf, size_t from_index, size_t to_index) {
+  size_t from_block, target_index, block_end_index;
+  from_block = from_index / QF_SLOTS_PER_BLOCK;
+  block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  while (block_end_index <= to_index) {
+    // In from_b, reset all bits from (from_index to target_index)
+    // TODO - do one bitop.
+    for (size_t i=from_index; i <= block_end_index; i++) {
+      SET_T(qf, i);
+    }
+
+    // from_index = target_index + 1
+    from_index = block_end_index + 1;
+    if (from_index > to_index) break;
+    from_block++;
+    block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  }
+}
+
+ #endif
