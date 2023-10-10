@@ -6,7 +6,7 @@ elif [ $1 -eq 1 ]; then
   run_args="-k 38 -q 22 -v 0 -w 41943 -l 838860 -i 95 -s 0 -t 1 -g 50"
   qf_bits_per_slot="-DQF_BITS_PER_SLOT=16"
 elif [ $1 -eq 2 ]; then
-  run_args="-k 64 -q 27 -v 0 -w 1342100 -l 26843500 -i 95 -s 0 -t 1 -g 50"
+  run_args="-k 59 -q 27 -v 0 -w 1342100 -l 26843500 -i 95 -s 0 -t 1 -g 50"
   qf_bits_per_slot="-DQF_BITS_PER_SLOT=32"
 elif [ $1 -eq 3 ]; then
   run_args="-k 64 -q 27 -v 0 -w 1342100 -l 26843500 -i 95 -s 0 -t 1 -g 50"

@@ -3,7 +3,6 @@
 
 #include "gqf.h"
 
-
 #ifdef QF_TOMBSTONE
 
 #include "ts_util.h"
@@ -21,23 +20,17 @@ void qft_rebuild(QF *qf, uint8_t flags);
  * Return the number of pushing tombstones at the end.
  */
 int _deamortized_rebuild(HM *hm) {
-  size_t ts_space = _get_ts_space(hm);
-  size_t rebuild_interval = hm->metadata->rebuild_interval;
-  if (rebuild_interval == 0)
-    // Default rebuild interval: 1.5(pts space) [Our paper]
-    rebuild_interval = 1.5 * ts_space;
-  // rebuild_interval /= 15;
   size_t from_run = hm->metadata->rebuild_run;
-  size_t until_run = from_run + rebuild_interval;
+  size_t until_run = from_run + hm->metadata->rebuild_interval;
   hm->metadata->rebuild_run = until_run;
-  if (until_run >= hm->metadata->nslots) {
+  if (until_run >= hm->metadata->nslots) { // Should we add a unlikely here?
     until_run = hm->metadata->nslots;
     hm->metadata->rebuild_run = 0;
   }
 #ifdef REBUILD_NO_INSERT
-  return _rebuild_no_insertion(hm, from_run, until_run, ts_space);
+  return _rebuild_no_insertion(hm, from_run, until_run, hm->metadata->tombstone_space);
 #else
-  return _rebuild_1round(hm, from_run, until_run, ts_space);
+  return _rebuild_1round(hm, from_run, until_run, hm->metadata->tombstone_space);
 #endif
 }
 #endif

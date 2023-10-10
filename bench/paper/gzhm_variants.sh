@@ -6,7 +6,7 @@ elif [ $1 -eq 1 ]; then
   run_args="-k 38 -q 22 -v 0 -w 41943 -l 838860 -i 95 -s 0 -t 1 -g 50"
   qf_bits_per_slot="-DQF_BITS_PER_SLOT=16"
 elif [ $1 -eq 2 ]; then
-  run_args="-k 64 -q 27 -v 0 -w 1342100 -l 26843500 -i 95 -s 0 -t 1 -g 50"
+  run_args="-k 59 -q 27 -v 0 -w 1342100 -l 26843500 -i 95 -s 0 -t 1 -g 50"
   qf_bits_per_slot="-DQF_BITS_PER_SLOT=32"
 elif [ $1 -eq 3 ]; then
   run_args="-k 64 -q 27 -v 0 -w 1342100 -l 26843500 -i 95 -s 0 -t 1 -g 50"
@@ -18,7 +18,7 @@ fi
 
 # Second flag is workload (mixed for throughput, nomixed for latency)
 if [ $2 -eq 0 ]; then
-  churn_args="-c 300 -m 1"
+  churn_args="-c 50 -m 1"
   latency=""
 elif [ $2 -eq 1 ]; then
   churn_args="-c 80 -m 0 -z 50"
@@ -28,7 +28,8 @@ else
   exit
 fi
 
-VARIANTS=("TRHM" "RHM" "GRHM" "GZHM" "GZHM_DELETE")
+#VARIANTS=("TRHM" "RHM" "GRHM" "GZHM" "GZHM_DELETE")
+VARIANTS=("GZHM")
 
 out_dir="sponge/$(date +%s)_gzhm_variants${latency}_$1"
 build_dir=${out_dir}/build
@@ -51,7 +52,7 @@ done
 
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p ${run_dir}/$VARIANT
-  echo ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
+  echo ./${build_dir}/$VARIANT/hm_churn ${run_args} ${churn_args} -d ${run_dir}/$VARIANT/
   numactl -N 0 -m 0 ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
 done
 
