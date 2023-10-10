@@ -139,8 +139,6 @@ extern "C" {
 	uint64_t qf_get_num_key_remainder_bits(const QF *qf);
 	uint64_t qf_get_bits_per_slot(const QF *qf);
 
-	void qf_sync_counters(const QF *qf);
-
 	/****************************************
 		Iterators
 	*****************************************/

@@ -106,7 +106,7 @@ static inline int _insert_ts_at(QF *const qf, size_t index, size_t run) {
   if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
   // Change counts
   if (is_empty(qf, available_slot_index))
-    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
+    qf->metadata->noccupied_slots++;
   // shift slot and metadata
   shift_remainders(qf, index, available_slot_index);
   shift_runends_tombstones(qf, index, available_slot_index, 1);
@@ -208,7 +208,7 @@ static void _clear_tombstones(QF *qf) {
     if (push_start < curr_quotien) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
       if (n_to_free > 0)
-        modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
+        qf->metadata->noccupied_slots -= n_to_free;
       push_start = curr_quotien;
       push_end = MAX(push_end, push_start);
     }
@@ -281,7 +281,8 @@ static inline int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, s
     if (push_start < curr_run) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_run, push_end) - push_start;
       if (n_to_free > 0)
-        modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
+        grhm->metadata->noccupied_slots -= n_to_free;
+        // modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
       push_start = curr_run;
       push_end = MAX(push_end, push_start);
     }
@@ -316,7 +317,7 @@ static int _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, si
     if (push_start < curr_run) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_run, push_end) - push_start;
       if (n_to_free > 0)
-        modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
+        grhm->metadata->noccupied_slots -= -n_to_free;
       push_start = curr_run;
       push_end = MAX(push_end, push_start);
     }
@@ -333,7 +334,6 @@ static void reset_rebuild_cd(HM *hm) {
   if (hm->metadata->nrebuilds != 0)
     hm->metadata->rebuild_cd = hm->metadata->nrebuilds;
   else {
-    qf_sync_counters(hm);
     size_t nslots = hm->metadata->nslots;
     size_t nelts = hm->metadata->nelts;
 #ifdef REBUILD_BY_CLEAR
@@ -406,7 +406,6 @@ static size_t _get_ts_space(HM *hm) {
   size_t ts_space = hm->metadata->tombstone_space;
   if (ts_space == 0) {
     // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
-    qf_sync_counters(hm);
     size_t nslots = hm->metadata->nslots;
     size_t nelts = hm->metadata->nelts;
 #if defined REBUILD_DEAMORTIZED_GRAVEYARD || defined REBUILD_AT_INSERT

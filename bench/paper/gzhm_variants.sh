@@ -25,9 +25,7 @@ else
   exit
 fi
 
-#VARIANTS=("TRHM" "RHM" "GRHM" "GZHM")
-#VARIANTS=("TRHM" "GRHM")
-VARIANTS=("RHM")
+VARIANTS=("TRHM" "RHM" "GRHM" "GZHM" "GZHM_DELETE")
 
 out_dir="sponge/$(date +%s)_gzhm_variants${latency}_$1"
 build_dir=${out_dir}/build
