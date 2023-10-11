@@ -90,6 +90,23 @@ struct LatencyMeasure {
   uint64_t nanoseconds;
 };
 
+void write_test_params() {
+  std::string test_params = "test_params.txt";
+  ofstream ofs;
+  ofs.open(dir + test_params);
+  ofs<< g_memory_usage() << " " << endl;
+  ofs<< key_bits << " " <<endl;
+  ofs<< quotient_bits << " " <<endl;
+  ofs<< value_bits << " " <<endl;
+  ofs<< initial_load_factor << " " <<endl;
+  ofs<< nchurns << " " << endl;
+  ofs<< nchurn_insert_ops << " " << endl;
+  ofs<< nchurn_delete_ops << " " << endl;
+  ofs<< nchurn_lookup_ops << " " << endl;
+  ofs.close();
+}
+
+
 void write_load_thrput_to_file(time_point<high_resolution_clock> *ts, uint64_t npoints,
                           std::string filename, uint64_t num_ops) {
   FILE *fp = fopen(filename.c_str(), "a");
@@ -636,6 +653,7 @@ void run_churn(
       write_churn_thrput_by_phase_to_file(thrput_measures, test_begin, false, thrput_output_file);
       write_churn_latency_by_phase_to_file(latency_measures, false, latency_output_file);
       write_churn_metadata_to_file(metadata_measures, test_begin, false, metadata_output_file);
+      write_test_params();
     }
     if (i % metadata_dump_freq == 0) {
       g_dump_metrics(dir);
@@ -685,22 +703,6 @@ void setup(std::string dir) {
   assert(system(mkdir.c_str()) == 0);
 }
 
-void write_test_params() {
-  std::string test_params = "test_params.txt";
-  ofstream ofs;
-  ofs.open(dir + test_params);
-  ofs<< g_memory_usage() << " " << endl;
-  ofs<< key_bits << " " <<endl;
-  ofs<< quotient_bits << " " <<endl;
-  ofs<< value_bits << " " <<endl;
-  ofs<< initial_load_factor << " " <<endl;
-  ofs<< nchurns << " " << endl;
-  ofs<< nchurn_insert_ops << " " << endl;
-  ofs<< nchurn_delete_ops << " " << endl;
-  ofs<< nchurn_lookup_ops << " " << endl;
-  ofs.close();
-}
-
 void churn_test() {
   std::string load_op = "load.txt";
   std::string churn_thrput = "churn_thrput.txt";
@@ -718,11 +720,12 @@ void churn_test() {
   generate_load_ops(ops, kv);
 
   g_init(num_slots, key_bits, value_bits, max_load_factor);
-  write_test_params();
   // LOAD PHASE.
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
   run_churn(ops, kv, num_initial_load_keys, filename_churn_thrput, filename_churn_latency, filename_churn_metadata);
+  // Query Memory.
+  write_test_params();
   g_destroy();
 }
 
