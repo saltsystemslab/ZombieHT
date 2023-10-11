@@ -79,7 +79,7 @@ extern "C" {
 		int64_t (*container_resize)(QF *qf, uint64_t nslots);
 		pc_t pc_nelts;
 		pc_t pc_noccupied_slots;
-    pc_t pc_rebuild_cd;
+    	pc_t pc_rebuild_cd;
 		uint64_t num_locks;
 		volatile int metadata_lock;
 		volatile int *locks;
@@ -118,7 +118,6 @@ extern "C" {
 	typedef quotient_filter_metadata qfmetadata;
 
 	typedef struct quotient_filter {
-		qfruntime *runtimedata;
 		qfmetadata *metadata;
 		qfblock *blocks;
 	} quotient_filter;

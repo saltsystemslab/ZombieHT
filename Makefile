@@ -43,6 +43,8 @@ ifdef VAR
 # Push each new ts to the next taken primitive ts postion, or the end of the cluster.
   else ifeq ($(VAR), GZHM_DELETE)
     FEATURE_FLAGS:=$(FEATURE_FLAGS) -D USE_GZHM_DELETE -D QF_TOMBSTONE -D DELETE_AND_PUSH
+  else ifeq ($(VAR), CLHT)
+    FEATURE_FLAGS:=$(FEATURE_FLAGS) -D USE_CLHT -DDEFAULT -Iexternal/clht/include -Iexternal/clht/external/include 
   else
     $(error "Invalid VAR=$(VAR)")
   endif
@@ -88,7 +90,7 @@ LD= g++ -std=c++11
 
 # TODO: remove -Wno-unused-function and -Wno-unused-variable.
 CXXFLAGS = -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) $(STRICT) $(FEATURE_FLAGS) -m64 -I. -Iinclude -Itests -Wno-unused-function -Wno-unused-variable
-LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
+LDFLAGS = $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm -lclht -Lexternal/clht
 
 #
 # declaration of dependencies

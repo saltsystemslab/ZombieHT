@@ -22,10 +22,6 @@ static inline int qf_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
   uint64_t hash_remainder = hash_slot_value >> qf->metadata->value_bits;
   uint64_t hash_bucket_index = hash >> qf->metadata->bits_per_slot;
   uint64_t hash_bucket_block_offset = hash_bucket_index % QF_SLOTS_PER_BLOCK;
-  if (GET_NO_LOCK(runtime_lock) != QF_NO_LOCK) {
-    if (!qf_lock(qf, hash_bucket_index, /*small*/ true, runtime_lock))
-      return QF_COULDNT_LOCK;
-  }
 
   if (is_empty(qf, hash_bucket_index) /* might_be_empty(qf, hash_bucket_index) && runend_index == hash_bucket_index */) {
     METADATA_WORD(qf, runends, hash_bucket_index) |=
@@ -34,8 +30,8 @@ static inline int qf_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
     METADATA_WORD(qf, occupieds, hash_bucket_index) |=
         1ULL << (hash_bucket_block_offset % 64);
     ret_distance = 0;
-    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-    modify_metadata(&qf->runtimedata->pc_nelts, 1);
+    qf->metadata->noccupied_slots++;
+    qf->metadata->nelts++;
   } else {
     uint64_t runend_index = run_end(qf, hash_bucket_index);
     int operation = 0; /* Insert into empty bucket */
@@ -58,7 +54,7 @@ static inline int qf_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
         operation = 1;
         insert_index = runstart_index;
         new_value = hash_slot_value;
-        modify_metadata(&qf->runtimedata->pc_nelts, 1);
+        qf->metadata->nelts++;
       /* Replace the current slot with this new hash. Don't shift anything. */
       } else if (current_remainder == hash_remainder) {
         operation = -1;
@@ -71,10 +67,10 @@ static inline int qf_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
         operation = 2; /* Inserting */
         insert_index = runstart_index;
         new_value = hash_slot_value;
-        modify_metadata(&qf->runtimedata->pc_nelts, 1);
+        qf->metadata->nelts++;
       }
     } else {
-        modify_metadata(&qf->runtimedata->pc_nelts, 1);
+        qf->metadata->nelts++;
     }
     if (operation >= 0) {
       uint64_t empty_slot_index;
@@ -124,18 +120,15 @@ static inline int qf_insert1(QF *qf, __uint128_t hash, uint8_t runtime_lock) {
         assert(get_block(qf, i)->offset != 0 && get_block(qf, i)->offset < 255);
       }
 #endif
-      modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
-      modify_metadata(&qf->runtimedata->pc_nelts, 1);
+      qf->metadata->noccupied_slots++;
+      qf->metadata->nelts++;
     }
-  }
-  if (GET_NO_LOCK(runtime_lock) != QF_NO_LOCK) {
-    qf_unlock(qf, hash_bucket_index, /*small*/ true);
   }
   return ret_distance;
 }
 
 int qf_insert(HM *qf, uint64_t key, uint64_t value, uint8_t flags) {
-  if (qf_get_num_occupied_slots(qf) >= qf->metadata->nslots * 0.99) {
+  if (qf->metadata->noccupied_slots >= qf->metadata->nslots * 0.99) {
     return QF_NO_SPACE;
   }
   if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
@@ -156,11 +149,6 @@ int qf_remove(HM *qf, uint64_t key, uint8_t flags) {
   uint64_t hash = key;
   uint64_t hash_remainder = hash & BITMASK(qf->metadata->key_remainder_bits);
   int64_t hash_bucket_index = hash >> qf->metadata->key_remainder_bits;
-
-  if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
-		if (!qf_lock(qf, hash_bucket_index, /*small*/ false, flags))
-			return QF_COULDNT_LOCK;
-	}
 
   /* Empty bucket */
   if (!is_occupied(qf, hash_bucket_index))
@@ -188,10 +176,7 @@ int qf_remove(HM *qf, uint64_t key, uint8_t flags) {
 																																		p,
 																																		0,
 																																		1);
-  modify_metadata(&qf->runtimedata->pc_nelts, -1);
-	if (GET_NO_LOCK(flags) != QF_NO_LOCK) {
-		qf_unlock(qf, hash_bucket_index, /*small*/ false);
-	}
+  qf->metadata->nelts--;
 	return ret_numfreedslots;
 
 }

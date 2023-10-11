@@ -80,219 +80,6 @@ static __inline__ unsigned long long rdtsc(void) {
   return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
 }
 
-#ifdef LOG_WAIT_TIME
-static inline bool qf_spin_lock(QF *qf, volatile int *lock, uint64_t idx,
-                                uint8_t flag) {
-  struct timespec start, end;
-  bool ret;
-
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
-  if (GET_WAIT_FOR_LOCK(flag) != QF_WAIT_FOR_LOCK) {
-    ret = !__sync_lock_test_and_set(lock, 1);
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-    qf->runtimedata->wait_times[idx].locks_acquired_single_attempt++;
-    qf->runtimedata->wait_times[idx].total_time_single +=
-        BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-  } else {
-    if (!__sync_lock_test_and_set(lock, 1)) {
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-      qf->runtimedata->wait_times[idx].locks_acquired_single_attempt++;
-      qf->runtimedata->wait_times[idx].total_time_single +=
-          BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-    } else {
-      while (__sync_lock_test_and_set(lock, 1))
-        while (*lock)
-          ;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
-      qf->runtimedata->wait_times[idx].total_time_spinning +=
-          BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-    }
-    ret = true;
-  }
-  qf->runtimedata->wait_times[idx].locks_taken++;
-
-  return ret;
-
-  /*start = rdtsc();*/
-  /*if (!__sync_lock_test_and_set(lock, 1)) {*/
-  /*clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);*/
-  /*qf->runtimedata->wait_times[idx].locks_acquired_single_attempt++;*/
-  /*qf->runtimedata->wait_times[idx].total_time_single += BILLION * (end.tv_sec
-   * - start.tv_sec) + end.tv_nsec - start.tv_nsec;*/
-  /*} else {*/
-  /*while (__sync_lock_test_and_set(lock, 1))*/
-  /*while (*lock);*/
-  /*clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);*/
-  /*qf->runtimedata->wait_times[idx].total_time_spinning += BILLION *
-   * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;*/
-  /*}*/
-
-  /*end = rdtsc();*/
-  /*qf->runtimedata->wait_times[idx].locks_taken++;*/
-  /*return;*/
-}
-#else
-/**
- * Try to acquire a lock once and return even if the lock is busy.
- * If spin flag is set, then spin until the lock is available.
- */
-static inline bool qf_spin_lock(volatile int *lock, uint8_t flag) {
-  if (GET_WAIT_FOR_LOCK(flag) != QF_WAIT_FOR_LOCK) {
-    return !__sync_lock_test_and_set(lock, 1);
-  } else {
-    while (__sync_lock_test_and_set(lock, 1))
-      while (*lock)
-        ;
-    return true;
-  }
-
-  return false;
-}
-#endif
-
-static inline void qf_spin_unlock(volatile int *lock) {
-  __sync_lock_release(lock);
-  return;
-}
-
-static bool qf_lock(QF *qf, uint64_t hash_bucket_index, bool small,
-                    uint8_t runtime_lock) {
-  uint64_t hash_bucket_lock_offset = hash_bucket_index % NUM_SLOTS_TO_LOCK;
-  if (small) {
-#ifdef LOG_WAIT_TIME
-    if (!qf_spin_lock(
-            qf, &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK],
-            hash_bucket_index / NUM_SLOTS_TO_LOCK, runtime_lock))
-      return false;
-    if (NUM_SLOTS_TO_LOCK - hash_bucket_lock_offset <= CLUSTER_SIZE) {
-      if (!qf_spin_lock(qf,
-                        &qf->runtimedata
-                             ->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK + 1],
-                        hash_bucket_index / NUM_SLOTS_TO_LOCK + 1,
-                        runtime_lock)) {
-        qf_spin_unlock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK]);
-        return false;
-      }
-    }
-#else
-    if (!qf_spin_lock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK],
-            runtime_lock))
-      return false;
-    if (NUM_SLOTS_TO_LOCK - hash_bucket_lock_offset <= CLUSTER_SIZE) {
-      if (!qf_spin_lock(&qf->runtimedata
-                             ->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK + 1],
-                        runtime_lock)) {
-        qf_spin_unlock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK]);
-        return false;
-      }
-    }
-#endif
-  } else {
-#ifdef LOG_WAIT_TIME
-    if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-        hash_bucket_lock_offset <= CLUSTER_SIZE) {
-      if (!qf_spin_lock(qf,
-                        &qf->runtimedata
-                             ->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1],
-                        runtime_lock))
-        return false;
-    }
-    if (!qf_spin_lock(
-            qf, &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK],
-            runtime_lock)) {
-      if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-          hash_bucket_lock_offset <= CLUSTER_SIZE)
-        qf_spin_unlock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1]);
-      return false;
-    }
-    if (!qf_spin_lock(
-            qf,
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK + 1],
-            runtime_lock)) {
-      qf_spin_unlock(
-          &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK]);
-      if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-          hash_bucket_lock_offset <= CLUSTER_SIZE)
-        qf_spin_unlock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1]);
-      return false;
-    }
-#else
-    if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-        hash_bucket_lock_offset <= CLUSTER_SIZE) {
-      if (!qf_spin_lock(&qf->runtimedata
-                             ->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1],
-                        runtime_lock))
-        return false;
-    }
-    if (!qf_spin_lock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK],
-            runtime_lock)) {
-      if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-          hash_bucket_lock_offset <= CLUSTER_SIZE)
-        qf_spin_unlock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1]);
-      return false;
-    }
-    if (!qf_spin_lock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK + 1],
-            runtime_lock)) {
-      qf_spin_unlock(
-          &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK]);
-      if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-          hash_bucket_lock_offset <= CLUSTER_SIZE)
-        qf_spin_unlock(
-            &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1]);
-      return false;
-    }
-#endif
-  }
-  return true;
-}
-
-static void qf_unlock(QF *qf, uint64_t hash_bucket_index, bool small) {
-  uint64_t hash_bucket_lock_offset = hash_bucket_index % NUM_SLOTS_TO_LOCK;
-  if (small) {
-    if (NUM_SLOTS_TO_LOCK - hash_bucket_lock_offset <= CLUSTER_SIZE) {
-      qf_spin_unlock(
-          &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK + 1]);
-    }
-    qf_spin_unlock(
-        &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK]);
-  } else {
-    qf_spin_unlock(
-        &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK + 1]);
-    qf_spin_unlock(
-        &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK]);
-    if (hash_bucket_index >= NUM_SLOTS_TO_LOCK &&
-        hash_bucket_lock_offset <= CLUSTER_SIZE)
-      qf_spin_unlock(
-          &qf->runtimedata->locks[hash_bucket_index / NUM_SLOTS_TO_LOCK - 1]);
-  }
-}
-
-/*static void modify_metadata(QF *qf, uint64_t *metadata, int cnt)*/
-/*{*/
-/*#ifdef LOG_WAIT_TIME*/
-/*qf_spin_lock(qf, &qf->runtimedata->metadata_lock,*/
-/*qf->runtimedata->num_locks, QF_WAIT_FOR_LOCK);*/
-/*#else*/
-/*qf_spin_lock(&qf->runtimedata->metadata_lock, QF_WAIT_FOR_LOCK);*/
-/*#endif*/
-/**metadata = *metadata + cnt;*/
-/*qf_spin_unlock(&qf->runtimedata->metadata_lock);*/
-/*return;*/
-/*}*/
-
-/* Increase the metadata by cnt.*/
-static void modify_metadata(pc_t *metadata, int cnt) {
-  pc_add(metadata, cnt);
-  return;
-}
 
 static inline int popcnt(uint64_t val) {
   asm("popcnt %[val], %[val]" : [val] "+r"(val) : : "cc");
@@ -827,6 +614,41 @@ static inline void shift_remainders(QF *qf, uint64_t start_index,
           &get_block(qf, empty_block)->slots[start_offset],
           (empty_offset - start_offset) * sizeof(qf->blocks[0].slots[0]));
 }
+
+// Shift [start_index, end_index] by dist slots to the left.
+static inline void shift_remainders_left(QF *qf, uint64_t start_index,
+                                    uint64_t end_index, uint64_t dist) {
+    uint64_t total_slots_to_shift = (end_index - start_index + 1);
+    uint64_t slots_shifted = 0;
+    size_t dst_index = start_index - dist;
+    while (slots_shifted < total_slots_to_shift) {
+      size_t start_block = start_index / QF_SLOTS_PER_BLOCK;
+      size_t start_block_offset = start_index % QF_SLOTS_PER_BLOCK;
+      size_t dst_block = dst_index / QF_SLOTS_PER_BLOCK;
+      size_t dst_block_offset = dst_index % QF_SLOTS_PER_BLOCK;
+
+      size_t src_window_size = MIN(QF_SLOTS_PER_BLOCK - start_block_offset, end_index - start_index+1);
+      size_t dst_window_size = (QF_SLOTS_PER_BLOCK - dst_block_offset);
+      
+      size_t slots_to_shift = MIN(src_window_size, dst_window_size);
+      memmove(
+        &get_block(qf, dst_block)->slots[dst_block_offset],
+        &get_block(qf, start_block)->slots[start_block_offset], 
+        slots_to_shift * sizeof(qf->blocks[0].slots[0]));
+      #if 0
+      // To debug this, compare with the version that moves slot bt slot.
+      printf("Block Moving [%ld, %ld] to [%ld %ld]\n", 
+        start_index, 
+        start_index + slots_to_shift-1, 
+        dst_index, 
+        dst_index + slots_to_shift-1);
+      #endif
+      start_index += slots_to_shift;
+      dst_index += slots_to_shift;
+      slots_shifted += slots_to_shift;
+    }
+}
+
 #else
 
 #define REMAINDER_WORD(qf, i)                                                  \
@@ -853,6 +675,13 @@ static inline void shift_remainders(QF *qf, const uint64_t start_index,
   *REMAINDER_WORD(qf, last_word) =
       shift_into_b(0, *REMAINDER_WORD(qf, last_word), bstart, bend,
                    qf->metadata->bits_per_slot);
+}
+
+static inline void shift_remainders_left(QF *qf, uint64_t start_index,
+                                    uint64_t end_index, int dist) {
+    for (size_t cur_idx = start_index; cur_idx <= end_index; cur_idx++) {
+      set_slot(qf, cur_idx-dist, get_slot(qf, cur_idx));
+    }
 }
 
 #endif
@@ -1050,12 +879,7 @@ remove_replace_slots_and_shift_remainders_and_runends_and_offsets(
 #endif
 
   int num_slots_freed = old_length - total_remainders;
-  modify_metadata(&qf->runtimedata->pc_noccupied_slots, -num_slots_freed);
-  /*qf->metadata->noccupied_slots -= (old_length - total_remainders);*/
-  if (!total_remainders) {
-    // modify_metadata(&qf->runtimedata->pc_ndistinct_elts, -1);
-    /*qf->metadata->ndistinct_elts--;*/
-  }
+  qf->metadata->noccupied_slots -= num_slots_freed;
 
   return ret_current_distance;
 }
@@ -1200,4 +1024,38 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
 }
 #endif
 
-#endif
+// Reset all tombstone bits from [from_index, to_index]
+static inline void reset_tombstone_block(QF *qf, size_t from_index, size_t to_index) {
+  size_t from_block, from_block_offset, target_index, block_end_index, block_end_offset, mask;
+  from_block = from_index / QF_SLOTS_PER_BLOCK;
+  block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  while (true) {
+    block_end_offset = block_end_index % QF_SLOTS_PER_BLOCK;
+    from_block_offset = from_index % QF_SLOTS_PER_BLOCK;
+    mask = BITMASK(QF_SLOTS_PER_BLOCK) ^ (BITMASK(block_end_offset+1) ^ BITMASK(from_block_offset));
+    METADATA_WORD(qf, tombstones, block_end_index) &= mask;
+    from_index = block_end_index + 1;
+    if (from_index > to_index) break;
+    from_block++;
+    block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  }
+}
+
+// Set all tombstone bits from [from_index, to_index]
+static inline void set_tombstone_block(QF *qf, size_t from_index, size_t to_index) {
+  size_t from_block, from_block_offset, target_index, block_end_index, block_end_offset, mask;
+  from_block = from_index / QF_SLOTS_PER_BLOCK;
+  block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  while (true) {
+    block_end_offset = block_end_index % QF_SLOTS_PER_BLOCK;
+    from_block_offset = from_index % QF_SLOTS_PER_BLOCK;
+    mask = (BITMASK(block_end_offset+1) ^ BITMASK(from_block_offset));
+    METADATA_WORD(qf, tombstones, block_end_index) |= mask;
+    from_index = block_end_index + 1;
+    if (from_index > to_index) break;
+    from_block++;
+    block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
+  }
+}
+
+ #endif

@@ -1,3 +1,6 @@
 [submodule "abseil-cpp"]
 	path = external/abseil-cpp
 	url = https://github.com/saltsystemslab/abseil-cpp
+[submodule "external/clht"]
+	path = external/clht
+	url = git@github.com:saltsystemslab/CLHT

@@ -122,8 +122,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   qf->metadata->rebuild_run = 0;
   qf->metadata->tombstone_space = tombstone_space;
   qf->metadata->nrebuilds = nrebuilds;
-  qf->metadata->rebuild_interval =
-      nrebuilds == 0 ? 0 : ((xnslots / nrebuilds) + 1);
+  qf->metadata->rebuild_interval = 1.5 * tombstone_space;
   qf->metadata->rebuild_cd = nrebuilds;
 #endif
   qf->metadata->key_bits = key_bits;
@@ -149,34 +148,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   }
 #endif
 
-  qf->runtimedata->num_locks = (qf->metadata->xnslots / NUM_SLOTS_TO_LOCK) + 2;
 
-  pc_init(&qf->runtimedata->pc_nelts, (int64_t *)&qf->metadata->nelts,
-          num_counters, threshold);
-  pc_init(&qf->runtimedata->pc_noccupied_slots,
-          (int64_t *)&qf->metadata->noccupied_slots, num_counters, threshold);
-#ifdef QF_TOMBSTONE
-  pc_init(&qf->runtimedata->pc_rebuild_cd,
-          (int64_t *)&qf->metadata->rebuild_cd, num_counters, threshold);
-#endif
-  /* initialize container resize */
-  qf->runtimedata->auto_resize = 0;
-  /* initialize all the locks to 0 */
-  qf->runtimedata->metadata_lock = 0;
-  qf->runtimedata->locks =
-      (volatile int *)calloc(qf->runtimedata->num_locks, sizeof(volatile int));
-  if (qf->runtimedata->locks == NULL) {
-    perror("Couldn't allocate memory for runtime locks.");
-    exit(EXIT_FAILURE);
-  }
-#ifdef LOG_WAIT_TIME
-  qf->runtimedata->wait_times = (wait_time_data *)calloc(
-      qf->runtimedata->num_locks + 1, sizeof(wait_time_data));
-  if (qf->runtimedata->wait_times == NULL) {
-    perror("Couldn't allocate memory for runtime wait_times.");
-    exit(EXIT_FAILURE);
-  }
-#endif
 
   return total_num_bytes;
 }
@@ -195,39 +167,10 @@ uint64_t qf_use(QF *qf, void *buffer, uint64_t buffer_len) {
   }
   qf->blocks = (qfblock *)(qf->metadata + 1);
 
-  qf->runtimedata = (qfruntime *)calloc(sizeof(qfruntime), 1);
-  if (qf->runtimedata == NULL) {
-    perror("Couldn't allocate memory for runtime data.");
-    exit(EXIT_FAILURE);
-  }
-  /* initialize all the locks to 0 */
-  qf->runtimedata->metadata_lock = 0;
-  qf->runtimedata->locks =
-      (volatile int *)calloc(qf->runtimedata->num_locks, sizeof(volatile int));
-  if (qf->runtimedata->locks == NULL) {
-    perror("Couldn't allocate memory for runtime locks.");
-    exit(EXIT_FAILURE);
-  }
-#ifdef LOG_WAIT_TIME
-  qf->runtimedata->wait_times = (wait_time_data *)calloc(
-      qf->runtimedata->num_locks + 1, sizeof(wait_time_data));
-  if (qf->runtimedata->wait_times == NULL) {
-    perror("Couldn't allocate memory for runtime wait_times.");
-    exit(EXIT_FAILURE);
-  }
-#endif
-
   return sizeof(qfmetadata) + qf->metadata->total_size_in_bytes;
 }
 
 void *qf_destroy(QF *qf) {
-  assert(qf->runtimedata != NULL);
-  if (qf->runtimedata->locks != NULL)
-    free((void *)qf->runtimedata->locks);
-  if (qf->runtimedata->wait_times != NULL)
-    free(qf->runtimedata->wait_times);
-  free(qf->runtimedata);
-
   return (void *)qf->metadata;
 }
 
@@ -261,11 +204,6 @@ bool qf_malloc_advance(QF *qf, uint64_t nslots, uint64_t key_bits,
     exit(EXIT_FAILURE);
   }
 
-  qf->runtimedata = (qfruntime *)calloc(sizeof(qfruntime), 1);
-  if (qf->runtimedata == NULL) {
-    perror("Couldn't allocate memory for runtime data.");
-    exit(EXIT_FAILURE);
-  }
 
   uint64_t init_size =
       qf_init_advanced(qf, nslots, key_bits, value_bits, tombstone_space,
@@ -286,35 +224,6 @@ bool qf_free(QF *qf) {
   }
 
   return false;
-}
-
-void qf_copy(QF *dest, const QF *src) {
-  DEBUG_CQF("%s\n", "Source CQF");
-  DEBUG_DUMP(src);
-  memcpy(dest->runtimedata, src->runtimedata, sizeof(qfruntime));
-  memcpy(dest->metadata, src->metadata, sizeof(qfmetadata));
-  memcpy(dest->blocks, src->blocks, src->metadata->total_size_in_bytes);
-  DEBUG_CQF("%s\n", "Destination CQF after copy.");
-  DEBUG_DUMP(dest);
-}
-
-void qf_reset(QF *qf) {
-  qf->metadata->nelts = 0;
-  qf->metadata->noccupied_slots = 0;
-
-#ifdef LOG_WAIT_TIME
-  memset(qf->wait_times, 0,
-         (qf->runtimedata->num_locks + 1) * sizeof(wait_time_data));
-#endif
-#if QF_BITS_PER_SLOT == 8 || QF_BITS_PER_SLOT == 16 ||                         \
-    QF_BITS_PER_SLOT == 32 || QF_BITS_PER_SLOT == 64
-  memset(qf->blocks, 0, qf->metadata->nblocks * sizeof(qfblock));
-#else
-  memset(qf->blocks, 0,
-         qf->metadata->nblocks *
-             (sizeof(qfblock) +
-              QF_SLOTS_PER_BLOCK * qf->metadata->bits_per_slot / 8));
-#endif
 }
 
 uint64_t qf_get_key_from_index(const QF *qf, const size_t index) {
@@ -364,29 +273,6 @@ __uint128_t qf_get_hash_range(const QF *qf) { return qf->metadata->range; }
 uint64_t qf_get_total_size_in_bytes(const QF *qf) {
   return qf->metadata->total_size_in_bytes;
 }
-uint64_t qf_get_nslots(const QF *qf) { return qf->metadata->nslots; }
-uint64_t qf_get_num_occupied_slots(const QF *qf) {
-  pc_sync(&qf->runtimedata->pc_noccupied_slots);
-  return qf->metadata->noccupied_slots;
-}
-
-uint64_t qf_get_num_key_bits(const QF *qf) { return qf->metadata->key_bits; }
-uint64_t qf_get_num_value_bits(const QF *qf) {
-  return qf->metadata->value_bits;
-}
-uint64_t qf_get_num_key_remainder_bits(const QF *qf) {
-  return qf->metadata->key_remainder_bits;
-}
-uint64_t qf_get_bits_per_slot(const QF *qf) {
-  return qf->metadata->bits_per_slot;
-}
-
-void qf_sync_counters(const QF *qf) {
-  pc_sync(&qf->runtimedata->pc_nelts);
-  pc_sync(&qf->runtimedata->pc_noccupied_slots);
-  pc_sync(&qf->runtimedata->pc_rebuild_cd);
-}
-
 /* initialize the iterator at the run corresponding
  * to the position index
  */

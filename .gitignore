@@ -24,3 +24,7 @@ test_threadsafe
 perf.*
 build/
 bench_run/*
+bench_*
+sponge/*
+csv/*
+paper/*

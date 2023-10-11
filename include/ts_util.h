@@ -106,7 +106,7 @@ static inline int _insert_ts_at(QF *const qf, size_t index, size_t run) {
   if (available_slot_index >= qf->metadata->xnslots) return QF_NO_SPACE;
   // Change counts
   if (is_empty(qf, available_slot_index))
-    modify_metadata(&qf->runtimedata->pc_noccupied_slots, 1);
+    qf->metadata->noccupied_slots++;
   // shift slot and metadata
   shift_remainders(qf, index, available_slot_index);
   shift_runends_tombstones(qf, index, available_slot_index, 1);
@@ -131,6 +131,22 @@ static inline int _insert_pts(QF *const qf, size_t run) {
   return _insert_ts_at(qf, index, run);
 }
 
+/* Return num of tombstones in range [start, start+end). */
+static inline size_t tombstones_cnt(const QF *qf, size_t start, size_t len) {
+  size_t cnt = 0;
+  size_t end = start + len;
+  size_t block_i = start / QF_SLOTS_PER_BLOCK;
+  size_t bstart = start % QF_SLOTS_PER_BLOCK;
+  do {
+    size_t word = get_block(qf, block_i)->tombstones[0];
+    cnt += popcntv(word, bstart);
+    block_i++;
+    bstart = 0;
+  } while ((block_i) * QF_SLOTS_PER_BLOCK <= end);
+  size_t word = get_block(qf, block_i-1)->tombstones[0];
+  cnt -= popcntv(word, end % QF_SLOTS_PER_BLOCK);
+  return cnt;
+}
 
 /* Push tombstones over an existing run (has at least one non-tombstone).
  * Range of pushing tombstones is [push_start, push_end).
@@ -138,6 +154,38 @@ static inline int _insert_pts(QF *const qf, size_t run) {
  * After this, push_start-1 is the end of the run.
  */
 static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
+  #ifdef MEMMOVE_PUSH
+  //[runstart, runend] is the window over which we clear tombstones.
+  //[push_start/runstart, *push_end) are tombstones.
+  int runstart = *push_start;
+  int runend = runends_select(qf, *push_end, 0);
+  size_t push_len = (*push_end - *push_start);
+  int next_tombstone;
+  do {
+    // Find first block of items to shift left.
+    // These are all items until next tombstone or runend.
+    next_tombstone = find_next_tombstone(qf, *push_end);
+    next_tombstone = MIN(runend, next_tombstone);
+
+    // Shift them all and update push_end and push_start.
+    shift_remainders_left(qf, *push_end, next_tombstone, push_len);
+    *push_end = next_tombstone + 1;
+    // If we pushed over a tombstone, we need to collect it.
+    if (next_tombstone < runend) {
+      push_len++;
+    }
+  } while (next_tombstone < runend);
+  *push_start = *push_end - push_len;
+  // Reset metadatablocks only if there was actually shifting.
+  if (push_len) {
+    reset_tombstone_block(qf, runstart, *push_start-1);
+    set_tombstone_block(qf, *push_start, *push_end-1);
+    RESET_R(qf, *push_end - 1);
+    SET_R(qf, *push_start - 1);
+  }
+
+  #else 
+  // We have to shift slot by slot to collect tombstones.
   do {
     // push 1 slot at a time.
     if (!is_tombstone(qf, *push_end)) {
@@ -154,6 +202,7 @@ static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
   // reset first, because push_start may equal to push_end.
   RESET_R(qf, *push_end - 1);
   SET_R(qf, *push_start - 1);
+  #endif
 }
 
 /* Push tombstones over an existing run (has at least one non-tombstone).
@@ -208,7 +257,7 @@ static void _clear_tombstones(QF *qf) {
     if (push_start < curr_quotien) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_quotien, push_end) - push_start;
       if (n_to_free > 0)
-        modify_metadata(&qf->runtimedata->pc_noccupied_slots, -n_to_free);
+        qf->metadata->noccupied_slots -= n_to_free;
       push_start = curr_quotien;
       push_end = MAX(push_end, push_start);
     }
@@ -281,7 +330,7 @@ static inline int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, s
     if (push_start < curr_run) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_run, push_end) - push_start;
       if (n_to_free > 0)
-        modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
+        grhm->metadata->noccupied_slots -= n_to_free;
       push_start = curr_run;
       push_end = MAX(push_end, push_start);
     }
@@ -316,7 +365,7 @@ static int _rebuild_no_insertion(QF *grhm, size_t from_run, size_t until_run, si
     if (push_start < curr_run) {  // Reached the end of the cluster.
       size_t n_to_free = MIN(curr_run, push_end) - push_start;
       if (n_to_free > 0)
-        modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
+        grhm->metadata->noccupied_slots -= -n_to_free;
       push_start = curr_run;
       push_end = MAX(push_end, push_start);
     }
@@ -333,7 +382,6 @@ static void reset_rebuild_cd(HM *hm) {
   if (hm->metadata->nrebuilds != 0)
     hm->metadata->rebuild_cd = hm->metadata->nrebuilds;
   else {
-    qf_sync_counters(hm);
     size_t nslots = hm->metadata->nslots;
     size_t nelts = hm->metadata->nelts;
 #ifdef REBUILD_BY_CLEAR
@@ -406,7 +454,6 @@ static size_t _get_ts_space(HM *hm) {
   size_t ts_space = hm->metadata->tombstone_space;
   if (ts_space == 0) {
     // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
-    qf_sync_counters(hm);
     size_t nslots = hm->metadata->nslots;
     size_t nelts = hm->metadata->nelts;
 #if defined REBUILD_DEAMORTIZED_GRAVEYARD || defined REBUILD_AT_INSERT

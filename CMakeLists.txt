@@ -4,15 +4,25 @@ project(ZombieHashTable)
 option(NEW_BLOCKOFFSET "Use new blockoffset" ON)
 option(UNORDERED "Whether quotients are ordered inside a run" OFF)
 option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered to make space for a new item." OFF)
+option(PUSH_OVER_MEMMOVE "Push over runs while rebuilding using memmove." OFF)
 set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
 set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
 set(QF_BITS_PER_SLOT "0" CACHE STRING "Bits per QF slots")
 
 if (NOT PTS STREQUAL "0.0")
   add_compile_definitions(-DPTS=${PTS})
+elseif(VARIANT STREQUAL "GZHM")
+  add_compile_definitions(-DPTS=2)
+elseif(VARIANT STREQUAL "GZHM_DELETE")
+  add_compile_definitions(-DPTS=1)
 endif()
+
 if (NEW_BLOCKOFFSET)
   add_compile_definitions(-D_BLOCKOFFSET_4_NUM_RUNENDS)
+endif()
+
+if (PUSH_OVER_MEMMOVE)
+  add_compile_definitions(-DMEMMOVE_PUSH)
 endif()
 
 if (UNORDERED)
@@ -45,6 +55,8 @@ elseif (VARIANT STREQUAL "ABSL")
   add_compile_definitions(-DUSE_ABSL)
 elseif (VARIANT STREQUAL "ICEBERG")
   add_compile_definitions(-DUSE_ICEBERG)
+elseif (VARIANT STREQUAL "CLHT")
+  add_compile_definitions(-DUSE_CLHT)
 else()
   message("Unkonwn Variant")
 endif()
@@ -57,6 +69,8 @@ set_source_files_properties(src/hashutil.c PROPERTIES LANGUAGE CXX )
 include_directories(
   include/
   tests/
+  external/clht/include
+  external/clht/external/include
 )
 
 add_library(hashutil src/hashutil.c)
@@ -71,6 +85,12 @@ if (VARIANT STREQUAL "ABSL")
 elseif(VARIANT STREQUAL "ICEBERG")
   add_subdirectory(external/iceberghashtable)
   target_link_libraries(hm_churn iceberg ssl crypto)
+elseif(VARIANT STREQUAL "CLHT")
+  # COMPILE DEFINITIONS USED BY CLHT.
+  add_compile_definitions(-DDEFAULT)
+  # This library must be built. Make sure the right one is built.
+  # TODO: Add a script that builds the right version.
+  target_link_libraries(hm_churn ssl crypto ${CMAKE_SOURCE_DIR}/external/clht/libclht.a)
 else()
   target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil)
 endif()
