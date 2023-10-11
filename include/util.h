@@ -1024,6 +1024,8 @@ static void _recalculate_block_offsets(QF *qf, size_t index) {
 }
 #endif
 
+#ifdef QF_TOMBSTONE
+
 // Reset all tombstone bits from [from_index, to_index]
 static inline void reset_tombstone_block(QF *qf, size_t from_index, size_t to_index) {
   size_t from_block, from_block_offset, target_index, block_end_index, block_end_offset, mask;
@@ -1057,5 +1059,7 @@ static inline void set_tombstone_block(QF *qf, size_t from_index, size_t to_inde
     block_end_index = MIN((from_block + 1)* QF_SLOTS_PER_BLOCK - 1, to_index);
   }
 }
+
+#endif
 
  #endif

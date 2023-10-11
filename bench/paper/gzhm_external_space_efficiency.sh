@@ -52,11 +52,10 @@ done
 
 for VARIANT in "${VARIANTS[@]}"; do
 for LF in "${LOAD_FACTOR[@]}"; do
-  mkdir -p ${run_dir}/${VARIANT}_${LF}
-  echo ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
-  numactl -N 0 -m 0 ./${build_dir}/${VARIANT}/hm_churn $run_args -i ${LF} $churn_args -d ${run_dir}/${VARIANT}_${LF}/
+  mkdir -p ${run_dir}/${VARIANT}:${LF}
+  numactl -N 0 -m 0 ./${build_dir}/${VARIANT}/hm_churn $run_args -i ${LF} $churn_args -d ${run_dir}/${VARIANT}:${LF}/
 done
 done
 
-echo python3 ./bench/plot_graph.py ${run_dir} 
+echo python3 ./bench/plot_graph.py ${run_dir}  ${result_dir}
 python3 ./bench/plot_graph.py ${run_dir} ${result_dir}

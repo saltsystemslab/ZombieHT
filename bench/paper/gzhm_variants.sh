@@ -56,5 +56,5 @@ for VARIANT in "${VARIANTS[@]}"; do
   numactl -N 0 -m 0 ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
 done
 
-echo python3 ./bench/plot_graph.py ${run_dir} 
+echo python3 ./bench/plot_graph.py ${run_dir} ${result_dir}
 python3 ./bench/plot_graph.py ${run_dir} ${result_dir}

@@ -60,5 +60,5 @@ for PTS in "${PTS_LIST[@]}"; do
 done
 done
 
-echo python3 ./bench/plot_graph.py ${run_dir} 
+echo python3 ./bench/plot_graph.py ${run_dir} ${result_dir}
 python3 ./bench/plot_graph.py ${run_dir} ${result_dir}

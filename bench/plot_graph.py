@@ -264,7 +264,7 @@ def memory_usage(dir):
         tput.append(get_thrput(d))
         data.append(memory_usage)
         labels.append(d)
-        hm_type.append(d[0:3]) # Hack, first three characters to identify hashmap type for space efficiency study.
+        hm_type.append(d[0:d.find(':')]) # Hack, first three characters to identify hashmap type for space efficiency study.
         lfs.append(load_factor(d))
     df['Hashmap'] = labels
     df['hm_type'] = hm_type

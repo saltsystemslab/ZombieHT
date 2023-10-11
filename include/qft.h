@@ -99,7 +99,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
     if (is_occupied(qf, hash_bucket_index) && insert_index < runend_index) {
       // If slot is found inside a runend, it must be a tombstone.
       // Insert quickly here and exit without shifting anything.
-      assert(is_tombstone(insert_index));
+      assert(is_tombstone(qf, insert_index));
       RESET_T(qf, insert_index);
       set_slot(qf, insert_index, new_value);
       SET_O(qf, hash_bucket_index);
