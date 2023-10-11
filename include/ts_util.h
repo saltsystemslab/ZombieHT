@@ -154,8 +154,58 @@ static inline size_t tombstones_cnt(const QF *qf, size_t start, size_t len) {
  * After this, push_start-1 is the end of the run.
  */
 static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
-  // Get the first runend after push_end.
+  #define MEMMOVE_PUSH
+  #ifdef MEMMOVE_PUSH
+  //[runstart, runend] is the window over which we clear tombstones.
+  //[push_start/runstart, *push_end) are tombstones.
+  int runstart = *push_start;
   int runend = runends_select(qf, *push_end, 0);
+  size_t push_len = (*push_end - *push_start);
+  int next_tombstone;
+  do {
+    // Find first block of items to shift left.
+    // These are all items until next tombstone or runend.
+    next_tombstone = find_next_tombstone(qf, *push_end);
+    next_tombstone = MIN(runend, next_tombstone);
+
+    // Shift them all and update push_end and push_start.
+    shift_remainders_left(qf, *push_end, next_tombstone, push_len);
+    *push_end = next_tombstone + 1;
+    // If we pushed over a tombstone, we need to collect it.
+    if (next_tombstone < runend) {
+      push_len++;
+    }
+  } while (next_tombstone < runend);
+  *push_start = *push_end - push_len;
+  // Reset metadatablocks only if there was actually shifting.
+  if (push_len) {
+    reset_tombstone_block(qf, runstart, *push_start-1);
+    set_tombstone_block(qf, *push_start, *push_end-1);
+    RESET_R(qf, *push_end - 1);
+    SET_R(qf, *push_start - 1);
+  }
+
+  #else 
+  // We have to shift slot by slot to collect tombstones.
+  do {
+    // push 1 slot at a time.
+    if (!is_tombstone(qf, *push_end)) {
+      if (*push_start != *push_end) {
+        RESET_T(qf, *push_start);
+        SET_T(qf, *push_end);
+        set_slot(qf, *push_start, get_slot(qf, *push_end));
+      }
+      ++*push_start;
+    }
+    ++*push_end;
+  } while (!is_runend(qf, *push_end-1));
+  // reached the end of the run
+  // reset first, because push_start may equal to push_end.
+  RESET_R(qf, *push_end - 1);
+  SET_R(qf, *push_start - 1);
+  #endif
+
+  #if 0
   int nt = tombstones_cnt(qf, *push_end, runend-*push_end+1);
   if (nt == 0) {
     size_t push_len = (*push_end - *push_start);
@@ -178,24 +228,7 @@ static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
     SET_R(qf, *push_start - 1);
     return;
   }
-
-  // We have to shift slot by slot to collect tombstones.
-  do {
-    // push 1 slot at a time.
-    if (!is_tombstone(qf, *push_end)) {
-      if (*push_start != *push_end) {
-        RESET_T(qf, *push_start);
-        SET_T(qf, *push_end);
-        set_slot(qf, *push_start, get_slot(qf, *push_end));
-      }
-      ++*push_start;
-    }
-    ++*push_end;
-  } while (!is_runend(qf, *push_end-1));
-  // reached the end of the run
-  // reset first, because push_start may equal to push_end.
-  RESET_R(qf, *push_end - 1);
-  SET_R(qf, *push_start - 1);
+  #endif
 }
 
 /* Push tombstones over an existing run (has at least one non-tombstone).
