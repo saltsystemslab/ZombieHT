@@ -18,7 +18,7 @@ fi
 
 # Second flag is workload (mixed for throughput, nomixed for latency)
 if [ $2 -eq 0 ]; then
-  churn_args="-c 30 -m 1"
+  churn_args="-c 50 -m 1"
   latency=""
 elif [ $2 -eq 1 ]; then
   churn_args="-c 80 -m 0 -z 50"
@@ -28,10 +28,10 @@ else
   exit
 fi
 
-VARIANTS=("ABSL" "ICEBERG" "GZHM" "CLHT")
-LOAD_FACTOR=("35" "45" "55" "65" "75" "85" "95")
+#VARIANTS=("TRHM" "RHM" "GRHM" "GZHM" "GZHM_DELETE")
+VARIANTS=("GZHM")
 
-out_dir="sponge/$(date +%s)_gzhm_lf${latency}_$1"
+out_dir="sponge/$(date +%s)_gzhm_variants${latency}_$1"
 build_dir=${out_dir}/build
 run_dir=${out_dir}/run
 result_dir=${out_dir}/result
@@ -51,11 +51,9 @@ for VARIANT in "${VARIANTS[@]}"; do
 done
 
 for VARIANT in "${VARIANTS[@]}"; do
-for LF in "${LOAD_FACTOR[@]}"; do
-  mkdir -p ${run_dir}/${VARIANT}_${LF}
-  echo ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
-  numactl -N 0 -m 0 ./${build_dir}/${VARIANT}/hm_churn $run_args -i ${LF} $churn_args -d ${run_dir}/${VARIANT}_${LF}/
-done
+  mkdir -p ${run_dir}/$VARIANT
+  echo ./${build_dir}/$VARIANT/hm_churn ${run_args} ${churn_args} -d ${run_dir}/$VARIANT/
+  numactl -N 0 -m 0 ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
 done
 
 echo python3 ./bench/plot_graph.py ${run_dir} 

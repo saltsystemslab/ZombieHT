@@ -18,7 +18,7 @@ fi
 
 # Second flag is workload (mixed for throughput, nomixed for latency)
 if [ $2 -eq 0 ]; then
-  churn_args="-c 50 -m 1"
+  churn_args="-c 20 -m 1"
   latency=""
 elif [ $2 -eq 1 ]; then
   churn_args="-c 80 -m 0 -z 50"
@@ -46,7 +46,7 @@ mkdir -p ${result_dir}
 
 for VARIANT in "${VARIANTS[@]}"; do
   mkdir -p ${build_dir}/$VARIANT
-  cmake . -B${build_dir}/$VARIANT -DCMAKE_BUILD_TYPE=Release -DVARIANT=$VARIANT ${qf_bits_per_slot}
+  cmake . -B${build_dir}/$VARIANT -DCMAKE_BUILD_TYPE=Debug -DVARIANT=$VARIANT ${qf_bits_per_slot}
   cmake --build ${build_dir}/$VARIANT -j8
 done
 

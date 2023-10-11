@@ -68,7 +68,7 @@ int qft_insert(QF *const qf, uint64_t key, uint64_t value, uint8_t flags) {
   // printf("occupied_slots: %zu\n", occupied_slots);
   if (occupied_slots >= qf->metadata->nslots) {
     qft_rebuild(qf, QF_NO_LOCK);
-    if (occupied_slots = qf->metadata->nslots) return QF_NO_SPACE;
+    if (occupied_slots == qf->metadata->nslots) return QF_NO_SPACE;
   }
   if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
     fprintf(stderr, "RobinHood Tombstone HM assumes key is hash for now.");
