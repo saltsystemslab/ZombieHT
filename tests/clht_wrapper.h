@@ -11,7 +11,7 @@
 
 clht_t *hm;
 extern inline int g_init(uint64_t nslots, uint64_t key_size, uint64_t value_size, float max_load_factor) {
-	hm = clht_create(nslots/2);
+	hm = clht_create(nslots/4);
 	return 0;
 }
 
