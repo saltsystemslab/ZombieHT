@@ -154,7 +154,6 @@ static inline size_t tombstones_cnt(const QF *qf, size_t start, size_t len) {
  * After this, push_start-1 is the end of the run.
  */
 static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
-  #define MEMMOVE_PUSH
   #ifdef MEMMOVE_PUSH
   //[runstart, runend] is the window over which we clear tombstones.
   //[push_start/runstart, *push_end) are tombstones.
@@ -203,31 +202,6 @@ static void _push_over_run(QF *qf, size_t *push_start, size_t *push_end) {
   // reset first, because push_start may equal to push_end.
   RESET_R(qf, *push_end - 1);
   SET_R(qf, *push_start - 1);
-  #endif
-
-  #if 0
-  int nt = tombstones_cnt(qf, *push_end, runend-*push_end+1);
-  if (nt == 0) {
-    size_t push_len = (*push_end - *push_start);
-    // Exit early if push_len is 0, in this case there is nothing to actually do as there
-    // are no tombstones to collect. It will also avoid underflow errors.
-    if (push_len == 0) {
-      *push_end = runend + 1;
-      *push_start = *push_end;
-      return;
-    }
-    reset_tombstone_block(qf, *push_start, *push_end-1);
-    // Shift all remainders from rest of run into push slot.
-    shift_remainders_left(qf, *push_end, runend, push_len);
-    *push_end = runend + 1;
-    *push_start = *push_end - push_len;
-
-    set_tombstone_block(qf, *push_start, *push_end-1);
-    // Update runend of run we just pushed over.
-    RESET_R(qf, *push_end - 1);
-    SET_R(qf, *push_start - 1);
-    return;
-  }
   #endif
 }
 
@@ -357,7 +331,6 @@ static inline int _rebuild_1round(QF *grhm, size_t from_run, size_t until_run, s
       size_t n_to_free = MIN(curr_run, push_end) - push_start;
       if (n_to_free > 0)
         grhm->metadata->noccupied_slots -= n_to_free;
-        // modify_metadata(&grhm->runtimedata->pc_noccupied_slots, -n_to_free);
       push_start = curr_run;
       push_end = MAX(push_end, push_start);
     }

@@ -679,7 +679,6 @@ static inline void shift_remainders(QF *qf, const uint64_t start_index,
 
 static inline void shift_remainders_left(QF *qf, uint64_t start_index,
                                     uint64_t end_index, int dist) {
-    // TODO: Make this a memmove.
     for (size_t cur_idx = start_index; cur_idx <= end_index; cur_idx++) {
       set_slot(qf, cur_idx-dist, get_slot(qf, cur_idx));
     }
