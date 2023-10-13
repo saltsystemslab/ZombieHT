@@ -217,6 +217,10 @@ extern "C" {
 	void qf_dump_long(const QF *);
 	void qf_dump_metadata(const QF *qf);
 
+	// Select the common keys from qfa, qfb into qfc
+	void qf_join(const QF *qfa, const QF *qfb, QF *qfc);
+
+
 #ifdef __cplusplus
 }
 #endif

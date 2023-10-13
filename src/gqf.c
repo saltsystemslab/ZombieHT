@@ -122,7 +122,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   qf->metadata->rebuild_run = 0;
   qf->metadata->tombstone_space = tombstone_space;
   qf->metadata->nrebuilds = nrebuilds;
-  qf->metadata->rebuild_interval = 1.5 * tombstone_space;
+  qf->metadata->rebuild_interval = 1.0 * tombstone_space;
   qf->metadata->rebuild_cd = nrebuilds;
 #endif
   qf->metadata->key_bits = key_bits;
@@ -481,3 +481,42 @@ bool qfi_end(const QFi *qfi) {
     return true;
   return false;
 }
+
+
+// We don't introduce tombstones in join_bench, so QFi doesn't need to be changed.
+void qf_join(const QF *qfa, const QF *qfb, QF *qfc)
+{
+    uint64_t count = 0;
+    QFi qfia, qfib;
+    qf_iterator_from_position(qfa, &qfia, 0);
+    qf_iterator_from_position(qfb, &qfib, 0);
+
+    if (qfa->metadata->hash_mode != qfc->metadata->hash_mode &&
+            qfa->metadata->seed != qfc->metadata->seed &&
+            qfb->metadata->hash_mode  != qfc->metadata->hash_mode &&
+            qfb->metadata->seed  != qfc->metadata->seed) {
+        fprintf(stderr, "Output QF and input QFs do not have the same hash mode or seed.\n");
+        exit(1);
+    }
+
+    uint64_t keya, valuea, keyb, valueb;
+    qfi_get_hash(&qfia, &keya, &valuea);
+    qfi_get_hash(&qfib, &keyb, &valueb);
+    printf("%ld %ld\n", keya, keyb);
+    do {
+        if (keya < keyb) {
+            qfi_next(&qfia);
+            qfi_get_hash(&qfia, &keya, &valuea);
+        } else if(keya == keyb) {
+            hm_insert(qfc, keya, valuea, QF_NO_LOCK | QF_KEY_IS_HASH);
+            qfi_next(&qfia);
+            qfi_get_hash(&qfia, &keya, &valuea);
+            count++;
+				} else {
+            qfi_next(&qfib);
+            qfi_get_hash(&qfib, &keyb, &valueb);
+        }
+    } while(!qfi_end(&qfia) && !qfi_end(&qfib));
+    printf("GZHM CommonKeys: %ld\n", count);
+}
+
