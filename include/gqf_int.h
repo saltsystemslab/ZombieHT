@@ -27,7 +27,7 @@ extern "C" {
    8, 16, 32, or 64 (for optimized versions),
    or other integer <= 56 (for compile-time-optimized bit-shifting-based versions)
 */
-#define QF_BITS_PER_SLOT 0
+// #define QF_BITS_PER_SLOT 0
 
 /* Must be >= 6.  6 seems fastest. */
 #define QF_BLOCK_OFFSET_BITS (6)
@@ -43,8 +43,10 @@ extern "C" {
 		uint8_t offset; 
 		uint64_t occupieds[QF_METADATA_WORDS_PER_BLOCK];
 		uint64_t runends[QF_METADATA_WORDS_PER_BLOCK];
+		#ifdef QF_TOMBSTONE
 		// 1 for both empty or tombston, 0 for real items.
 		uint64_t tombstones[QF_METADATA_WORDS_PER_BLOCK];
+		#endif
 
 #if QF_BITS_PER_SLOT == 8
 		uint8_t  slots[QF_SLOTS_PER_BLOCK];
@@ -61,7 +63,6 @@ extern "C" {
 #endif
 	} qfblock;
 
-	struct __attribute__ ((__packed__)) qfblock;
 	typedef struct qfblock qfblock;
 
 	// The below struct is used to instrument the code.
@@ -78,7 +79,7 @@ extern "C" {
 		int64_t (*container_resize)(QF *qf, uint64_t nslots);
 		pc_t pc_nelts;
 		pc_t pc_noccupied_slots;
-		pc_t pc_n_tombstones;
+    	pc_t pc_rebuild_cd;
 		uint64_t num_locks;
 		volatile int metadata_lock;
 		volatile int *locks;
@@ -95,26 +96,28 @@ extern "C" {
 		uint32_t seed;
 		uint64_t nslots;
 		uint64_t xnslots;
-		uint64_t tombstone_space;		// Distance between two primitive tombstones.
-		uint64_t nrebuilds;      		// Number of rebuilds per loop.
-		uint64_t rebuild_slots;  		// Number of slots to be rebuilt each time.
 		uint64_t key_bits;
 		uint64_t value_bits;
 		uint64_t key_remainder_bits;
 		uint64_t bits_per_slot;
 		__uint128_t range;
 		uint64_t nblocks;
-		uint64_t next_tombstone;	// Next position to put a tombstone.
-		uint64_t rebuild_pos;			// Current rebuild position
 		uint64_t nelts;						// Without tombstones
 		uint64_t noccupied_slots; // With tombstones
-		uint64_t n_tombstones;
+		#ifdef QF_TOMBSTONE
+		uint64_t n_start_rebuild;	// n_occupied_slots to start rebuild.
+		uint64_t next_tombstone;	// Next position to put a tombstone.
+		uint64_t rebuild_run;     // Current rebuild position
+		uint64_t tombstone_space;	// Distance between two primitive tombstones.
+		uint64_t nrebuilds;      	// Number of rebuilds per loop.
+		uint64_t rebuild_interval;// Number of slots to be rebuilt each time.
+		uint64_t rebuild_cd;  		// Rebuild window count down.
+		#endif
 	} quotient_filter_metadata;
 
 	typedef quotient_filter_metadata qfmetadata;
 
 	typedef struct quotient_filter {
-		qfruntime *runtimedata;
 		qfmetadata *metadata;
 		qfblock *blocks;
 	} quotient_filter;

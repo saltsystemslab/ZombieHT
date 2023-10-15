@@ -19,3 +19,15 @@ test
 test_runner
 test_pc
 test_threadsafe
+*.swp
+*.png
+*.data
+perf.*
+build/
+bench_run/*
+bench_*
+sponge2/*
+sponge/*
+sponge3/*
+csv/*
+paper/*

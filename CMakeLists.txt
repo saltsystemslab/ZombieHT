@@ -1,0 +1,114 @@
+cmake_minimum_required (VERSION 3.1...3.27)
+project(ZombieHashTable)
+
+option(NEW_BLOCKOFFSET "Use new blockoffset" ON)
+option(UNORDERED "Whether quotients are ordered inside a run" OFF)
+option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered to make space for a new item." OFF)
+option(PUSH_OVER_MEMMOVE "Push over runs while rebuilding using memmove." OFF)
+set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
+set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
+set(C_B "1.0" CACHE STRING "Rebuild Interval Multiplier")
+set(ABSL_REBUILD "0.0" CACHE STRING "Absl rebuild load factor.")
+set(QF_BITS_PER_SLOT "0" CACHE STRING "Bits per QF slots")
+
+if (NOT ABSL_REBUILD STREQUAL "0.0")
+  add_compile_definitions(-DCX=${ABSL_REBUILD})
+else()
+  add_compile_definitions(-DCX=0.975) 
+endif()
+
+add_compile_definitions(-DC_B=${C_B})
+
+if (NOT PTS STREQUAL "0.0")
+  add_compile_definitions(-DPTS=${PTS})
+elseif(VARIANT STREQUAL "GZHM")
+  add_compile_definitions(-DPTS=3) 
+elseif(VARIANT STREQUAL "GZHM_DELETE")
+  add_compile_definitions(-DPTS=1)
+endif()
+
+if (NEW_BLOCKOFFSET)
+  add_compile_definitions(-D_BLOCKOFFSET_4_NUM_RUNENDS)
+endif()
+
+if (PUSH_OVER_MEMMOVE)
+  add_compile_definitions(-DMEMMOVE_PUSH)
+endif()
+
+if (UNORDERED)
+  add_compile_definitions(-DUNORDERED)
+endif()
+
+if (SWAP_TOMBSTONE)
+  add_compile_definitions(-DSWAP_TOMBSTONE)
+endif()
+
+add_compile_definitions(-DQF_BITS_PER_SLOT=${QF_BITS_PER_SLOT})
+
+if(VARIANT STREQUAL "RHM")
+  add_compile_definitions(-DUSE_RHM)
+elseif(VARIANT STREQUAL "TRHM")
+  add_compile_definitions(-DUSE_TRHM -DQF_TOMBSTONE)
+elseif (VARIANT STREQUAL "GRHM")
+  add_compile_definitions(-DUSE_GRHM -DQF_TOMBSTONE -DAMORTIZED_REBUILD)
+elseif (VARIANT STREQUAL "GRHM_NO_INSERT")
+  add_compile_definitions(-DUSE_GRHM_NO_INSERT -DQF_TOMBSTONE -DREBUILD_NO_INSERT -DAMORTIZED_REBUILD)
+elseif (VARIANT STREQUAL "GZHM")
+  add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD)
+elseif (VARIANT STREQUAL "GZHM_MEMMOVE")
+  add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DMEMMOVE_PUSH)
+elseif (VARIANT STREQUAL "GZHM_UNORDERED")
+  add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DUNORDERED)
+elseif (VARIANT STREQUAL "GZHM_NO_INSERT")
+  add_compile_definitions(-DUSE_GZHM_NO_INSERT -DQF_TOMBSTONE -DREBUILD_NO_INSERT -DREBUILD_DEAMORTIZED_GRAVEYARD)
+elseif (VARIANT STREQUAL "GZHM_INSERT")
+  add_compile_definitions(-DUSE_GZHM_INSERT -DQF_TOMBSTONE -DREBUILD_AT_INSERT)
+elseif (VARIANT STREQUAL "GZHM_DELETE")
+  add_compile_definitions(-DUSE_GZHM_DELETE -DQF_TOMBSTONE -DDELETE_AND_PUSH)
+elseif (VARIANT STREQUAL "ABSL")
+  add_compile_definitions(-DUSE_ABSL)
+elseif (VARIANT STREQUAL "ICEBERG")
+  add_compile_definitions(-DUSE_ICEBERG)
+elseif (VARIANT STREQUAL "CLHT")
+  add_compile_definitions(-DUSE_CLHT)
+else()
+  message("Unkonwn Variant")
+endif()
+
+set(CMAKE_CXX_STANDARD 23)
+set_source_files_properties(src/gqf.c PROPERTIES LANGUAGE CXX )
+set_source_files_properties(src/hm.c PROPERTIES LANGUAGE CXX )
+set_source_files_properties(src/hashutil.c PROPERTIES LANGUAGE CXX )
+
+include_directories(
+  include/
+  tests/
+  external/clht/include
+  external/clht/external/include
+)
+
+add_library(hashutil src/hashutil.c)
+add_library(gqf src/gqf.c)
+add_library(hm src/hm.c)
+add_library(pc src/partitioned_counter.c)
+add_executable(hm_churn bench/hm_churn.cc)
+# Join bench always require iceberg hashtable.
+add_subdirectory(external/iceberghashtable)
+
+if (VARIANT STREQUAL "ABSL")
+  add_subdirectory(external/abseil-cpp)
+  target_link_libraries(hm_churn ssl crypto absl::flat_hash_map)
+elseif(VARIANT STREQUAL "ICEBERG")
+  target_link_libraries(hm_churn iceberg ssl crypto)
+elseif(VARIANT STREQUAL "CLHT")
+  # COMPILE DEFINITIONS USED BY CLHT.
+  add_compile_definitions(-DDEFAULT)
+  # This library must be built. Make sure the right one is built.
+  # TODO: Add a script that builds the right version.
+  target_link_libraries(hm_churn ssl crypto ${CMAKE_SOURCE_DIR}/external/clht/libclht.a)
+else()
+  target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil)
+endif()
+
+add_executable(join_test bench/join_bench.cc)
+target_link_libraries(join_test ssl crypto hm pc gqf hashutil iceberg)

@@ -6,72 +6,14 @@
 #include <unistd.h>
 #include <vector>
 #include <cassert>
-#include "rhm_wrapper.h"
-#include "trhm_wrapper.h"
+#include "hm_op.h"
+#include "hm_wrapper.h"
 
 using namespace std;
 
 #define MAX_VALUE(nbits) ((1ULL << (nbits)) - 1)
 #define BITMASK(nbits) ((nbits) == 64 ? 0xffffffffffffffff : MAX_VALUE(nbits))
 
-
-typedef int (*init_op)(uint64_t nkeys, uint64_t key_bits, uint64_t value_bits);
-typedef int (*insert_op)(uint64_t key, uint64_t val);
-typedef int (*lookup_op)(uint64_t key, uint64_t *val);
-typedef int (*remove_op)(uint64_t key);
-typedef int (*rebuild_op)();
-typedef int (*destroy_op)();
-
-typedef struct hashmap {
-  init_op init;
-  insert_op insert;
-  lookup_op lookup;
-  remove_op remove;
-  rebuild_op rebuild;
-  destroy_op destroy;
-} hashmap;
-
-hashmap rhm = {g_rhm_init, g_rhm_insert, g_rhm_lookup, g_rhm_remove,
-               g_rhm_rebuild, g_rhm_destroy};
-hashmap trhm = {g_trhm_init, g_trhm_insert, g_trhm_lookup, g_trhm_remove,
-               g_trhm_rebuild, g_trhm_destroy};
-
-#define INSERT 0
-#define DELETE 1
-#define LOOKUP 2
-
-struct hm_op {
-  int op;
-  uint64_t key;
-  uint64_t value;
-};
-
-void load_ops(std::string replay_filepath, int *key_bits, int *quotient_bits,
-              int *value_bits, std::vector<hm_op> &ops) {
-  ifstream ifs;
-  ifs.open(replay_filepath);
-  ifs >> (*key_bits) >> (*quotient_bits) >> (*value_bits);
-  uint64_t num_keys;
-  ifs >> num_keys;
-  for (int i = 0; i < num_keys; i++) {
-    hm_op op;
-    ifs >> op.op >> op.key >> op.value;
-    ops.push_back(op);
-  }
-  ifs.close();
-}
-
-void write_ops(std::string replay_filepath, int key_bits, int quotient_bits,
-               int value_bits, std::vector<hm_op> &ops) {
-  ofstream ofs;
-  ofs.open(replay_filepath);
-  ofs << key_bits << " " << quotient_bits << " " << value_bits << std::endl;
-  ofs << ops.size() << std::endl;
-  for (auto op : ops) {
-    ofs << op.op << " " << op.key << " " << op.value << std::endl;
-  }
-  ofs.close();
-}
 
 uint64_t get_random_key(std::map<uint64_t, uint64_t> map, int key_bits) {
   uint64_t rand_idx = 0;
@@ -95,9 +37,10 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
   std::map<uint64_t, uint64_t> map;
   std::vector<uint64_t> deleted_keys;
 
-  for (int i = 0; i < nkeys; i++) {
+  for (size_t i = 0; i < nkeys; i++) {
     uint64_t key = keys[i] & BITMASK(key_bits);
     uint64_t value = values[i] & BITMASK(value_bits);
+    if (value == 0) value = 1; // CLHT returns 0 on not found, so that confuses the test.
     ops.push_back({INSERT, key, value});
     map[key] = value;
   }
@@ -132,15 +75,17 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
         existing_value = -1;
     }
     new_value = values[i] & BITMASK(value_bits);
+    if (new_value == 0) new_value = 1;
 
     switch (op_type) {
     case INSERT:
-      ops.push_back({INSERT, key, new_value});
+      if (map.size() > nkeys)
+        break;
       map[key] = new_value;
       break;
     case DELETE:
       ops.push_back({DELETE, key, existing_value});
-      if (existing_value != -1) {
+      if (existing_value != -1u) {
         deleted_keys.push_back(key);
         map.erase(key);
       }
@@ -161,22 +106,27 @@ int value_bits = 8;
 int initial_load_factor = 50;
 int num_ops = 200;
 bool should_replay = false;
-std::string datastruct = "rhm";
 std::string replay_file = "test_case.txt";
 std::map<uint64_t, uint64_t> current_state;
-hashmap hm = rhm;
+static int verbose_flag = 0;  // 1 for verbose, 0 for brief
 
-void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, hashmap actual, bool check_equality = false) {
+void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, bool check_equality = false) {
   uint64_t value;
-  for (uint64_t k = 0; k < (1UL<<key_bits); k++) {
+  for (uint64_t k = 0; k <= (1UL<<key_bits)-1; k++) {
     int key_exists = expected.find(k) != expected.end();
-    int ret = actual.lookup(k, &value);
+    int ret = g_lookup(k, &value);
     if (key_exists) {
       uint64_t expected_value = expected[k];
-      assert(ret >= 0);
+      if (ret < 0 && expected_value != value) {
+        fprintf(stderr, "Key %lx, %lu value expected: %lu actual: %lu\n", k, k, expected_value, value);
+        abort();
+      }
       if (check_equality) assert(expected_value == value);
     } else {
-      assert(ret == QF_DOESNT_EXIST);
+      if (ret != QF_DOESNT_EXIST) {
+        fprintf(stderr, "Key %lx, %lu should not exist.\n", k, k);
+        abort();
+      }
     }
   }
 }
@@ -184,7 +134,6 @@ void check_universe(uint64_t key_bits, std::map<uint64_t, uint64_t> expected, ha
 void usage(char *name) {
   printf("%s [OPTIONS]\n"
          "Options are:\n"
-         "  -d datastruct           [ Default rhm. rhm, trhm ]\n"
          "  -k keysize bits         [ log_2 of map capacity.  Default 16 ]\n"
          "  -q quotientbits         [ Default 8. Max 64.]\n"
          "  -v value bits           [ Default 8. Max 64.]\n"
@@ -199,11 +148,8 @@ void parseArgs(int argc, char **argv) {
   int opt;
   char *term;
 
-  while ((opt = getopt(argc, argv, "d:k:q:v:m:l:f:r:")) != -1) {
+  while ((opt = getopt(argc, argv, "k:q:v:m:l:f:r:")) != -1) {
     switch (opt) {
-    case 'd':
-      datastruct = std::string(optarg);
-      break;
     case 'k':
       key_bits = strtol(optarg, &term, 10);
       if (*term) {
@@ -256,15 +202,6 @@ void parseArgs(int argc, char **argv) {
         replay_file = std::string(optarg);
         break;
     }
-    if (datastruct == "rhm") {
-      hm = rhm;
-    } else if (datastruct == "trhm") {
-      hm = trhm;
-    } else {
-      fprintf(stderr, "Argument to -d must one of 'rhm', 'trhm'. \n");
-      usage(argv[0]);
-      exit(1);
-    }
     // TODO(chesetti): Add assertions that flags are sane.
   }
 }
@@ -274,7 +211,8 @@ int main(int argc, char **argv) {
   cout << "Key Bits: " << key_bits << std::endl;
   cout << "Quotient Bits: " << quotient_bits << std::endl;
   cout << "Value Bits: " << value_bits << std::endl;
-  cout << "LoadFactor : " << initial_load_factor << std::endl;
+  float max_load_factor = initial_load_factor / 100.0;
+  cout << "LoadFactor : " << max_load_factor << std::endl;
   cout << "Num Ops: " << num_ops << std::endl;
   cout << "Is Replay: " << should_replay << std::endl;
   cout << "Test Case Replay File: " << replay_file << std::endl;
@@ -289,46 +227,50 @@ int main(int argc, char **argv) {
   write_ops(replay_file, key_bits, quotient_bits, value_bits, ops);
 
   std::map<uint64_t, uint64_t> map;
-  hm.init((1ULL<<quotient_bits), key_bits, value_bits);
+  g_init((1ULL<<quotient_bits), key_bits, value_bits, max_load_factor);
   uint64_t key, value;
   int ret, key_exists;
-  for (int i=0; i < ops.size(); i++) {
+  for (size_t i=0; i < ops.size(); i++) {
     auto op = ops[i];
     key = op.key;
     value = op.value;
-    #if DEBUG
-    printf("%d op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
-    #endif
+    if (verbose_flag)
+      printf("%lu op: %d, key: %lx, value:%lx.\n", i, op.op, key, value);
     switch(op.op) {
       case INSERT:
         map[key] = value;
-        ret = hm.insert(key, value);
+        ret = g_insert(key, value);
         if (ret < 0 && ret != QF_KEY_EXISTS) {
-          fprintf(stderr, "Insert failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+          fprintf(stderr, "Insert failed. Return %d for key %lx.\n", ret, key);
+          fprintf(stderr, "Replay this testcase with ./test_case -r 1 -f %s\n", replay_file.c_str());
           abort();
         }
-        check_universe(key_bits, map, hm);
+        check_universe(key_bits, map);
         break;
       case DELETE:
         key_exists = map.erase(key);
-        printf("key_exists: %d\n", key_exists);
-        ret = hm.remove(key);
+        if (verbose_flag)
+          printf("key_exists: %d\n", key_exists);
+        ret = g_remove(key);
         if (key_exists && ret < 0) {
-          fprintf(stderr, "Delete failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+          fprintf(stderr, "Delete failed. Return %d for existing key %lx.\n", ret, key);
+          fprintf(stderr, "Replay this testcase with ./test_case -r 1 -f %s\n", replay_file.c_str());
           abort();
         }
-        check_universe(key_bits, map, hm);
+        check_universe(key_bits, map);
         break;
       case LOOKUP:
-        ret = hm.lookup(key, &value);
+        ret = g_lookup(key, &value);
         if (map.find(key) != map.end()) {
           if (ret < 0)  {
-            fprintf(stderr, "Find failed. Replay this testcase with ./test_case -d %s -r 1 -f %s\n", datastruct.c_str(), replay_file.c_str());
+            fprintf(stderr, "Find failed. Return %d for existing key %lx.\n", ret, key);
+						fprintf(stderr, "Replay this testcase with ./test_case -r 1 -f %s\n", replay_file.c_str());
             abort();
           }
         }
         break;
     }
   }
-  hm.destroy();
+  printf("Test success.\n");
+  g_destroy();
 }

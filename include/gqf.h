@@ -94,15 +94,6 @@ extern "C" {
 		 can release that memory. */
 	void *qf_destroy(QF *qf);
 
-	/* Allocate a new CQF using "nslots" at "buffer" and copy elements from "qf"
-	 * into it. 
-	 * If there is not enough space at buffer then it will return the total size
-	 * needed in bytes to initialize the new CQF.
-	 * TODO: Otherwise, it will return what?
-	 * */
-	uint64_t qf_resize(QF* qf, uint64_t nslots, void* buffer, uint64_t
-										 buffer_len);
-
 	/***********************************
     The following convenience functions create and destroy CQFs by
 		using malloc/free to obtain and release the memory for the CQF. 
@@ -110,21 +101,9 @@ extern "C" {
 	
 	/* Initialize the CQF and allocate memory for the CQF. */
 	bool qf_malloc(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t
-								 value_bits, enum qf_hashmode hash, uint32_t seed);
+								 value_bits, enum qf_hashmode hash, uint32_t seed, float max_load_factor);
 
 	bool qf_free(QF *qf);
-
-	/* Resize the QF to the specified number of slots.  Uses malloc() to
-	 * obtain the new memory, and calls free() on the old memory.
-	 * Return value:
-	 *    >= 0: number of keys copied during resizing.
-	 * */
-	int64_t qf_resize_malloc(QF *qf, uint64_t nslots);
-
-	/* Turn on automatic resizing.  Resizing is performed by calling
-		 qf_resize_malloc, so the CQF must meet the requirements of that
-		 function. */
-	void qf_set_auto_resize(QF* qf, bool enabled);
 
 	/***********************************
    Functions for modifying the CQF.
@@ -134,36 +113,6 @@ extern "C" {
 #define QF_COULDNT_LOCK (-2)
 #define QF_DOESNT_EXIST (-3)
 #define QF_KEY_EXISTS (-4)
-	
-	/* Insert this key/value pair.
-	 * Return value:
-	 *    == 0: key already exists in the CQF, update the value.
-	 *    == QF_DOESNT_EXIST: Specified key did not exist. Inserted it. It's not
-	 * 											  an error.
-	 *    == QF_NO_SPACE: the CQF has reached capacity.
-	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
-	 */
-	int qf_insert(QF *qf, uint64_t key, uint64_t value, uint8_t flags);
-
-	/* Remove this key.
-	 * Return value:
-	 *    == 0: Found and removed the key.
-	 *    == QF_DOESNT_EXIST: Specified item did not exist.
-	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
-	 */
-	int qf_remove(QF *qf, uint64_t key, uint8_t flags);
-
-	/****************************************
-   Query functions
-	****************************************/
-	
-	/* Lookup the key.
-	 * Return value:
-	 *    == 0: Found the key and filled the value.
-	 *    == QF_DOESNT_EXIST: Specified item did not exist.
-	 *    == QF_COULDNT_LOCK: TRY_ONCE_LOCK has failed to acquire the lock.
-	 */
-	int qf_query(const QF *qf, uint64_t key, uint64_t *value, uint8_t flags);
 	
 	/* Return the number of times key has been inserted, with the given
 		 value, into qf.
@@ -189,8 +138,6 @@ extern "C" {
 	uint64_t qf_get_num_value_bits(const QF *qf);
 	uint64_t qf_get_num_key_remainder_bits(const QF *qf);
 	uint64_t qf_get_bits_per_slot(const QF *qf);
-
-	void qf_sync_counters(const QF *qf);
 
 	/****************************************
 		Iterators
@@ -254,20 +201,14 @@ extern "C" {
 	 * and dest must be exactly the same, including number of slots.  */
 	void qf_copy(QF *dest, const QF *src);
 
-	/* merge two QFs into the third one. Note: merges with any existing
-		 values in qfc.  */
-	void qf_merge(const QF *qfa, const QF *qfb, QF *qfc);
-
-	/* merge multiple QFs into the final QF one. */
-	void qf_multi_merge(const QF *qf_arr[], int nqf, QF *qfr);
-
 	/* Expose tombstone parameters for performance tests. 
 	 * When use 0 for tombstone_space and/or nrebuilds, the default values will
 	 * be calculated base on the load factor.
    */
 	bool qf_malloc_advance(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t
 								 					value_bits, enum qf_hashmode hash, uint32_t seed,
-										 			uint64_t tombstone_space, uint64_t nrebuilds);
+										 			uint64_t tombstone_space, uint64_t rebuild_interval, 
+													uint64_t nrebuilds);
 
 	/***********************************
 		Debugging functions.
@@ -276,6 +217,10 @@ extern "C" {
 	void qf_dump(const QF *);
 	void qf_dump_long(const QF *);
 	void qf_dump_metadata(const QF *qf);
+
+	// Select the common keys from qfa, qfb into qfc
+	void qf_join(const QF *qfa, const QF *qfb, QF *qfc);
+
 
 #ifdef __cplusplus
 }
