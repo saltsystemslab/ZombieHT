@@ -81,7 +81,6 @@ void generate_ops(int key_bits, int quotient_bits, int value_bits,
     case INSERT:
       if (map.size() > nkeys)
         break;
-      ops.push_back({INSERT, key, new_value});
       map[key] = new_value;
       break;
     case DELETE:

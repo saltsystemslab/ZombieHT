@@ -232,6 +232,7 @@ uint64_t qf_get_key_from_index(const QF *qf, const size_t index) {
   return get_slot(qf, index) >> qf->metadata->value_bits;
 }
 
+
 int64_t qf_get_unique_index(const QF *qf, uint64_t key, uint64_t value,
                             uint8_t flags) {
   if (GET_KEY_HASH(flags) == QF_HASH_INVERTIBLE)
@@ -275,6 +276,7 @@ __uint128_t qf_get_hash_range(const QF *qf) { return qf->metadata->range; }
 uint64_t qf_get_total_size_in_bytes(const QF *qf) {
   return qf->metadata->total_size_in_bytes;
 }
+
 /* initialize the iterator at the run corresponding
  * to the position index
  */
@@ -483,7 +485,6 @@ bool qfi_end(const QFi *qfi) {
     return true;
   return false;
 }
-
 
 // We don't introduce tombstones in join_bench, so QFi doesn't need to be changed.
 void qf_join(const QF *qfa, const QF *qfb, QF *qfc)
