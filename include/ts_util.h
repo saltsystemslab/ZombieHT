@@ -392,7 +392,7 @@ static void reset_rebuild_cd(HM *hm) {
     // fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
 #elif AMORTIZED_REBUILD
     hm->metadata->rebuild_cd = (nslots - nelts) / 4;
-    // fprintf(stdout, "Rebuild cd: %u\n", hm->metadata->rebuild_cd);
+    // fprintf(stdout, "Rebuild cd: %lu %lu %u\n", nslots, nelts, hm->metadata->rebuild_cd);
 #endif
   }
 #endif

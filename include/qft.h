@@ -45,9 +45,10 @@ int _deamortized_rebuild(HM *hm) {
 int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
   size_t ts_space = _get_ts_space(hm);
   size_t rebuild_interval = hm->metadata->rebuild_interval;
-  if (rebuild_interval == 0)
+  if (rebuild_interval == 0) {
     // Default rebuild interval: 1.5(pts space) [Our paper]
     rebuild_interval = 1.5 * ts_space;
+  }
   uint64_t hash = key2hash(hm, key, flags);
   uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
   quotien_remainder(hm, hash, &hash_bucket_index, &hash_remainder);
@@ -306,11 +307,11 @@ void qft_rebuild(QF *hm, uint8_t flags) {
     reset_rebuild_cd(hm);
 #elif AMORTIZED_REBUILD
 		size_t ts_space = _get_ts_space(hm);
-#ifdef REBUILD_NO_INSERT
+  #ifdef REBUILD_NO_INSERT
 		int ret = _rebuild_1round(hm, 0, hm->metadata->nslots, ts_space);
-#else
+  #else
 		int ret = _rebuild_no_insertion(hm, 0, hm->metadata->nslots, ts_space);
-#endif
+  #endif
 		reset_rebuild_cd(hm);
 #elif REBUILD_DEAMORTIZED_GRAVEYARD
 		abort();

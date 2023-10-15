@@ -70,6 +70,7 @@ void qf_dump_long(const QF *qf) {
  * them based on current load factor when rebuiding. */
 uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
                           uint64_t value_bits, uint64_t tombstone_space,
+                          uint64_t rebuild_interval,
                           uint64_t nrebuilds, enum qf_hashmode hash,
                           uint32_t seed, void *buffer, uint64_t buffer_len) {
   uint64_t num_slots, xnslots, nblocks;
@@ -122,7 +123,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   qf->metadata->rebuild_run = 0;
   qf->metadata->tombstone_space = tombstone_space;
   qf->metadata->nrebuilds = nrebuilds;
-  qf->metadata->rebuild_interval = 1.0 * tombstone_space;
+  qf->metadata->rebuild_interval = rebuild_interval; // C_B * X; // Size of window to be rebuilt.
   qf->metadata->rebuild_cd = nrebuilds;
 #endif
   qf->metadata->key_bits = key_bits;
@@ -156,7 +157,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
 uint64_t qf_init(QF *qf, uint64_t nslots, uint64_t key_bits,
                  uint64_t value_bits, enum qf_hashmode hash, uint32_t seed,
                  void *buffer, uint64_t buffer_len) {
-  return qf_init_advanced(qf, nslots, key_bits, value_bits, 0, 0, hash, seed,
+  return qf_init_advanced(qf, nslots, key_bits, value_bits, 0, 0, 0, hash, seed,
                           buffer, buffer_len);
 }
 
@@ -184,19 +185,20 @@ bool qf_malloc(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits,
   tombstone_space = 2.5 * x;
 #endif
 #ifdef PTS
-  tombstone_space = PTS * x;
+  tombstone_space = PTS * x; // PTS = 3.0
 #endif
+  uint64_t rebuild_interval = ceil(C_B * x);
   return qf_malloc_advance(qf, nslots, key_bits, value_bits, hash, seed,
-                           tombstone_space, nrebuilds);
+                           tombstone_space, rebuild_interval, nrebuilds);
 }
 
 bool qf_malloc_advance(QF *qf, uint64_t nslots, uint64_t key_bits,
                        uint64_t value_bits, enum qf_hashmode hash,
-                       uint32_t seed, uint64_t tombstone_space,
+                       uint32_t seed, uint64_t tombstone_space, uint64_t rebuild_interval,
                        uint64_t nrebuilds) {
   uint64_t total_num_bytes =
       qf_init_advanced(qf, nslots, key_bits, value_bits, tombstone_space,
-                       nrebuilds, hash, seed, NULL, 0);
+                       rebuild_interval, nrebuilds, hash, seed, NULL, 0);
 
   void *buffer = malloc(total_num_bytes);
   if (buffer == NULL) {
@@ -207,7 +209,7 @@ bool qf_malloc_advance(QF *qf, uint64_t nslots, uint64_t key_bits,
 
   uint64_t init_size =
       qf_init_advanced(qf, nslots, key_bits, value_bits, tombstone_space,
-                       nrebuilds, hash, seed, buffer, total_num_bytes);
+                       rebuild_interval, nrebuilds, hash, seed, buffer, total_num_bytes);
 
   if (init_size == total_num_bytes)
     return true;

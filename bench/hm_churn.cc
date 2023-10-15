@@ -47,7 +47,7 @@ int churn_latency_bucket_size = 10; // Latency is sampled as instantaneous laten
 int churn_thrput_resolution = 4;
 int mixed_workload = 0;
 int log_commit_freq = 10; // Commit results every commit_freq cycles.
-int metadata_dump_freq = 200; // Dump the metadata every 200 churn cycles.
+int metadata_dump_freq = 100; // Dump the metadata every 200 churn cycles.
 int churn_window_for_latency = 0;
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
@@ -604,49 +604,6 @@ void run_churn(
       churn_start_op += nchurn_lookup_ops;
     }
 
-  #ifdef USE_ABSL
-    metadata_measures.push_back({
-      i,
-      high_resolution_clock::now(),
-      g_map.size(),
-      g_map.bucket_count() - g_map.size()
-    });
-  #endif
-
-  #ifdef USE_ICEBERG
-    metadata_measures.push_back({
-      i,
-      high_resolution_clock::now(),
-      0, // NA
-      0 // NA
-    });
-  #endif
-
-  #ifdef USE_CLHT
-    metadata_measures.push_back({
-      i,
-      high_resolution_clock::now(),
-      0, // NA
-      0 // NA
-    });
-  #endif
-
-  #ifndef USE_ABSL
-  #ifndef USE_ICEBERG
-  #ifndef USE_CLHT
-    metadata_measures.push_back({
-      i,
-      high_resolution_clock::now(),
-      g_hashmap.metadata->nelts,
-#ifdef QF_TOMBSTONE
-      g_hashmap.metadata->noccupied_slots - g_hashmap.metadata->nelts
-#else
-      0
-#endif
-    });
-    #endif
-    #endif
-    #endif
 
     // Flush logs
     if (i % log_commit_freq == 0) {

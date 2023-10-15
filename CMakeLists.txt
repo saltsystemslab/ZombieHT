@@ -7,12 +7,22 @@ option(SWAP_TOMBSTONE "SWAP or SHIFT when unordered to make space for a new item
 option(PUSH_OVER_MEMMOVE "Push over runs while rebuilding using memmove." OFF)
 set(VARIANT "RHM" CACHE STRING "Refer CMakeLists.txt for list of valid values.")
 set(PTS "0.0" CACHE STRING "Tombstone distance parameter")
+set(C_B "1.0" CACHE STRING "Rebuild Interval Multiplier")
+set(ABSL_REBUILD "0.0" CACHE STRING "Absl rebuild load factor.")
 set(QF_BITS_PER_SLOT "0" CACHE STRING "Bits per QF slots")
+
+if (NOT ABSL_REBUILD STREQUAL "0.0")
+  add_compile_definitions(-DCX=${ABSL_REBUILD})
+else()
+  add_compile_definitions(-DCX=0.975) 
+endif()
+
+add_compile_definitions(-DC_B=${C_B})
 
 if (NOT PTS STREQUAL "0.0")
   add_compile_definitions(-DPTS=${PTS})
 elseif(VARIANT STREQUAL "GZHM")
-  add_compile_definitions(-DPTS=2)
+  add_compile_definitions(-DPTS=3) 
 elseif(VARIANT STREQUAL "GZHM_DELETE")
   add_compile_definitions(-DPTS=1)
 endif()
@@ -82,13 +92,13 @@ add_library(gqf src/gqf.c)
 add_library(hm src/hm.c)
 add_library(pc src/partitioned_counter.c)
 add_executable(hm_churn bench/hm_churn.cc)
+# Join bench always require iceberg hashtable.
 add_subdirectory(external/iceberghashtable)
 
 if (VARIANT STREQUAL "ABSL")
   add_subdirectory(external/abseil-cpp)
   target_link_libraries(hm_churn ssl crypto absl::flat_hash_map)
 elseif(VARIANT STREQUAL "ICEBERG")
-  add_subdirectory(external/iceberghashtable)
   target_link_libraries(hm_churn iceberg ssl crypto)
 elseif(VARIANT STREQUAL "CLHT")
   # COMPILE DEFINITIONS USED BY CLHT.

@@ -207,7 +207,8 @@ extern "C" {
    */
 	bool qf_malloc_advance(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t
 								 					value_bits, enum qf_hashmode hash, uint32_t seed,
-										 			uint64_t tombstone_space, uint64_t nrebuilds);
+										 			uint64_t tombstone_space, uint64_t rebuild_interval, 
+													uint64_t nrebuilds);
 
 	/***********************************
 		Debugging functions.
