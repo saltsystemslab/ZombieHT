@@ -3,6 +3,7 @@
 
 *.cqf
 *.o
+*.txt
 
 main
 bm

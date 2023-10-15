@@ -132,6 +132,10 @@ $(OBJDIR)/hm_churn.o:					$(LOC_TEST)/hm_wrapper.h
 
 $(OBJDIR)/test_runner.o:			$(LOC_TEST)/hm_wrapper.h
 
+$(OBJDIR)/hm_churn.o:					$(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
+
+$(OBJDIR)/test_runner.o:			$(LOC_INCLUDE)/rhm_wrapper.h $(LOC_INCLUDE)/trhm_wrapper.h
+
 
 # dependencies between .o files and .cc (or .c) files
 
