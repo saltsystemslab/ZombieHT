@@ -25,6 +25,8 @@ perf.*
 build/
 bench_run/*
 bench_*
+sponge2/*
 sponge/*
+sponge3/*
 csv/*
 paper/*
