@@ -1,19 +1,6 @@
 #ifndef ZIPF_H
 #define ZIPF_H
 
-/* Zipfian number generator.
- * Goals: Fast (10M numbers/s)
- *        Configurable exponent.
- *        Capable of generating at least 2^{32} (4 billion) distinct numbers.
- * There are two parameters:
- *   s the characteristic exponent, and
- *   N the number of elements in the universe.
- * Once created, this data structure is read-only, and can be used in a multithreaded fashion.  This code
- *  calls random(), which is generally multihread-safe these days.
- *
- * Copyright 2011 Bradley C. Kuszmaul 
- */
-
 #include <inttypes.h>
 
 #ifdef __cplusplus

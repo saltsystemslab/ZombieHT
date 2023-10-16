@@ -1,7 +1,3 @@
-/* See zipf.h for the specification of this file.
- * Copyright 2011 Bradley C. Kuszmaul
- */
-
 #include "include/zipf.h"
 #include <math.h>
 #include <assert.h>

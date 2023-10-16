@@ -1,13 +1,3 @@
-/*
- * ============================================================================
- *
- *        Authors:  Prashant Pandey <ppandey@cs.stonybrook.edu>
- *                  Rob Johnson <robj@vmware.com>
- *                  Rob Johnson <robj@vmware.com>
- *
- * ============================================================================
- */
-
 #include <assert.h>
 #include <fcntl.h>
 #include <inttypes.h>
