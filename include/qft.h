@@ -45,6 +45,7 @@ int _deamortized_rebuild(HM *hm) {
 int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
   size_t ts_space = _get_ts_space(hm);
   size_t rebuild_interval = hm->metadata->rebuild_interval;
+  // fprintf(stderr, "rebuild_interval: %ld tombstone_space: %ld\n", rebuild_interval, ts_space);
   if (rebuild_interval == 0) {
     // Default rebuild interval: 1.5(pts space) [Our paper]
     rebuild_interval = 1.5 * ts_space;

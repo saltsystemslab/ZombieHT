@@ -461,6 +461,11 @@ static size_t _get_ts_space(HM *hm) {
 #elif AMORTIZED_REBUILD
     ts_space = (2 * nslots) / (nslots - nelts);
 #endif
+/*
+    if (ts_space > 10) {
+      fprintf(stderr, "nslots: %ld nelts: %ld ts_space:%ld\n", nslots, nelts, ts_space);
+    }
+*/
   }
   return ts_space;
 }
