@@ -48,7 +48,7 @@ int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
   // fprintf(stderr, "rebuild_interval: %ld tombstone_space: %ld\n", rebuild_interval, ts_space);
   if (rebuild_interval == 0) {
     // Default rebuild interval: 1.5(pts space) [Our paper]
-    rebuild_interval = 1.5 * ts_space;
+    rebuild_interval = _get_x(hm);
   }
   uint64_t hash = key2hash(hm, key, flags);
   uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
