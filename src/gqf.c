@@ -175,7 +175,7 @@ bool qf_malloc(QF *qf, uint64_t nslots, uint64_t key_bits, uint64_t value_bits,
   tombstone_space = 2.5 * x;
 #endif
 #ifdef PTS
-  tombstone_space = PTS * x; // PTS = 3.0
+  tombstone_space = PTS * x; // PTS = 3.0, TODO:Rename, PTS is actually C_P
 #endif
   uint64_t rebuild_interval = ceil(C_B * x);
   return qf_malloc_advance(qf, nslots, key_bits, value_bits, hash, seed,

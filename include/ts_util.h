@@ -470,10 +470,11 @@ static size_t _get_ts_space(HM *hm) {
   return ts_space;
 }
 
-// Find the space between primitive tombstones.
+// load factor = 1 - 1/x.
 static size_t _get_x(HM *hm) {
   // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
   size_t nslots = hm->metadata->nslots;
+  size_t noccupied = hm->metadata->noccupied_slots;
   size_t nelts = hm->metadata->nelts;
   return nslots / (nslots - nelts);
 }

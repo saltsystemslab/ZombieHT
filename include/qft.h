@@ -21,7 +21,12 @@ void qft_rebuild(QF *qf, uint8_t flags);
  */
 int _deamortized_rebuild(HM *hm) {
   size_t from_run = hm->metadata->rebuild_run;
-  size_t until_run = from_run + hm->metadata->rebuild_interval;
+  size_t until_run; 
+  if (hm->metadata->rebuild_interval) {
+    until_run = from_run + hm->metadata->rebuild_interval;
+  } else {
+    until_run = from_run + _get_x(hm);
+  }
   hm->metadata->rebuild_run = until_run;
   if (until_run >= hm->metadata->nslots) { // Should we add a unlikely here?
     until_run = hm->metadata->nslots;
