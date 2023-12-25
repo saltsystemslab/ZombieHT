@@ -338,7 +338,7 @@ def plot_load_phase():
 
 memory_usage(dir)
 plot_load_phase()
-latency_distribution(dir, ["DELETE", "INSERT", "LOOKUP"])
+#latency_distribution(dir, ["DELETE", "INSERT", "LOOKUP"])
 plot_churn_op_throuput_churn("INSERT", ["INSERT"], csv=True, stats=True)
 plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True, stats=True)
 plot_churn_op_throuput_churn("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"], csv=True, stats=True)
