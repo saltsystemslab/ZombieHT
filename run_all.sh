@@ -9,9 +9,5 @@
 
 ./bench/paper_final/churn.sh 1 0 ABSL
 ./bench/paper_final/churn.sh 1 0 ABSL_LINEAR
-./bench/paper_final/churn.sh 1 0 ABSL_GRAVEYARD
-
-./bench/paper_final/churn.sh 3 0 ABSL
-./bench/paper_final/churn.sh 3 0 ABSL_LINEAR
-./bench/paper_final/churn.sh 1 0 ABSL_GRAVEYARD
-
+./bench/paper_final/churn.sh 1 0 ABSL_LINEAR_PUSH_TOMBSTONES
+./bench/paper_final/churn.sh 1 0 ABSL_GRAVEYARD_V2
