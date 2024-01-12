@@ -1,6 +1,6 @@
 TARGETS=test test_threadsafe test_pc bm hm_churn test_runner
 
-FEATURE_FLAGS= 
+FEATURE_FLAGS=-DC_B=1.0
 
 ifdef QF_BITS_PER_SLOT
 	FEATURE_FLAGS:=$(FEATURE_FLAGS) -D QF_BITS_PER_SLOT=$(QF_BITS_PER_SLOT)
