@@ -59,7 +59,7 @@ Options are:
 
 External Variants we compare against.
 
-1. ABSL: A [forked](https://github.com/saltsystemslab/abseil-cpp) version of [abseil-cpp](https://abseil.io/) that disables resizing. **SEE external/abseil-cpp/README.md (on branch linear-probe) for ABSL VARIANTS.**
+1. ABSL: A [forked](https://github.com/saltsystemslab/abseil-cpp) version of [abseil-cpp](https://abseil.io/) that disables resizing. **SEE [ABSL VARIANTS README](https://github.com/saltsystemslab/abseil-cpp/blob/linear-probe/README.md) for ABSL VARIANTS.**
 2. ICEBERG: [Iceberg HashTable](https://github.com/splatlab/iceberghashtable)
 3. CLHT: CLHT HashTable.
 
