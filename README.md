@@ -1,3 +1,16 @@
+# Setup
+
+```bash
+git clone git@github.com:saltsystemslab/grht
+cd grht
+git submodule update --init --recursive
+cd external/abseil-cpp
+git checkout linear-probe
+cd ../../
+./run_all.sh # Runs all throughput tests.
+```
+
+
 # ZombieHashmap
 
 ZombieHashmap is a hashmap that redistributes tombstones in a deamortized schedule. 
@@ -19,46 +32,7 @@ The [ChurnBenchmark](bench/hm_churn.cc) will
   2. Insert new `L` keys into the hashmap uniform randomly.
   3. Lookup `L` keys. Keys being looked up are a mixture of keys that are currently in hashmap, were deleted previously and random keys.
 
-### Hashmap Variants
-
-1. RHM: RobinHood Hashmap. Linear Probing with keys ordered in a run. Deletion will remove the item and shift items back.
-2. TRHM: RobinHood Hashmap with Tombstones. The same as RHM, but deletion leaves a tombstone that can be used by future inserts.
-3. GRHM: Graveyard Hashmap. Insertions and Deletions proceed in same manner as TRHM. A rebuild schedule will trigger that will redistribute tombstones across the hashmap.
-4. GZHM\_DELETE, GZHM: ZombieHashmap. Insertions and Deletions proceed in the same manner as TRHM, but tombstones are redistributed in a local region (region depends on implementation variant).
-
-External Variants we compare against.
-
-1. ABSL: A [forked](https://github.com/saltsystemslab/abseil-cpp) version of [abseil-cpp](https://abseil.io/) that disables resizing.
-2. ICEBERG: [Iceberg HashTable](https://github.com/splatlab/iceberghashtable)
-
-### Running the benchmark
-
-#### TL;DR version
-
-Run the below command and see plots in `./bench_result`
-
-```bash
-./scripts/make_dependencies.sh
-./bench/run_cmake_churn.sh
 ```
-
-#### Building and Running
-
-
-```bash
-mkdir build
-cd build
-cmake ../ --DCMAKE_BUILD_TYPE=Release -DVARIANT=GZHM_DELETE -DPTS=1.5
-cmake --build .
-```
-
-This will build `./hm_churn` in your build directory.
-
-```bash
-$ ./build/ABSL/hm_churn -h
-./build/ABSL/hm_churn: invalid option -- 'h'
-Unknown option
-./build/ABSL/hm_churn [OPTIONS]
 Options are:
   -d dir                [ Output Directory. Default bench_run ]
   -k keybits            [ Size of key in bits. ]
@@ -74,28 +48,64 @@ Options are:
   -g latency sample rate[ churn op latency sampling rate.  Default 1000]
   -s silent             [ Default 1. Use 0 for verbose mode
 ]
-$
 ```
 
-The below will dump metrics to a `bench_result` directory.
+### Hashmap Variants
+
+1. RHM: RobinHood Hashmap. Linear Probing with keys ordered in a run. Deletion will remove the item and shift items back.
+2. TRHM: RobinHood Hashmap with Tombstones. The same as RHM, but deletion leaves a tombstone that can be used by future inserts.
+3. GRHM: Graveyard Hashmap. Insertions and Deletions proceed in same manner as TRHM. A rebuild schedule will trigger that will redistribute tombstones across the hashmap.
+4. GZHM\_DELETE, GZHM: ZombieHashmap. Insertions and Deletions proceed in the same manner as TRHM, but tombstones are redistributed in a local region (region depends on implementation variant).
+
+External Variants we compare against.
+
+1. ABSL: A [forked](https://github.com/saltsystemslab/abseil-cpp) version of [abseil-cpp](https://abseil.io/) that disables resizing. **SEE [ABSL VARIANTS README](https://github.com/saltsystemslab/abseil-cpp/blob/linear-probe/README.md) for ABSL VARIANTS.**
+2. ICEBERG: [Iceberg HashTable](https://github.com/splatlab/iceberghashtable)
+3. CLHT: CLHT HashTable.
+
+## Churn test Script
+
+Using the below script is the quickest way to get started.
 
 ```bash
-$ mkdir bench_result
-$ ./build/ABSL/hm_churn -k 38 -q 22 -v 0 -c 6 -l 10000 -i 95 -s 1 -t 8 -d bench_result/                                               
-max_load_factor: 0.950000
-overall load insert throughput (ops/microsec): 16.882290
+$ ./bench/paper_final/churn.sh <TEST_CASE> <MEASURE_LATENCY> <HM_VARIANT>
 ```
 
-### Evaluation graphs
+TEST_CASE should be one of (1,2,3) (explained below)
+- 1 : key size 38 bits, quotient 22 bits
+- 2 : key size 59 bits, quotient 27 bits
+- 3: key size 64 bits, quotient 27 bits
 
-`./bench/plot_graph` will generate graphs for throughput and latency. It expects all variant results to be under a single directory.
+Quotient only matters for quotient filter variants.
 
-See this [script](./bench/run_cmake_run.sh) for details.
+MEASURE_LATENCY should be one of (0, 1)
+* 0: Don't measure latency, only throughput
+* 1: Sample latency
 
-## README TODOs
+VARIANTS: Refer to CMakeLists.txt for list of hashmap variants
 
-Last Updated: Sept 16, 2023
+### Example commands
 
-* Add citations.
-* Overview is a placeholder for now.
-* Explain what -q is and quotienting.
+```bash
+# Example commands
+$ ./bench/paper_final/churn.sh 1 0 GZHM
+$ ./bench/paper_final/churn.sh 1 0 ABSL
+$  python3 ./bench/plot_graph.py sponge/gzhm_variants_3/run sponge/gzhm_variants_1/result
+```
+
+The above script will
+* Create a directory `sponge/gzhm_variants_1`
+	* Here `1` refers to the test case.
+* For each variant a build will be generated in `./sponge/gzhm_variants_1/build/<VARIANT>`
+	* The churn test binary is named `hm_churn`
+* Will run a churn test for 220 cycles.
+	* Refer to `src/hm_churn.cc` for the flags set in `./bench/paper_final/churn.sh`
+* Generates test results for each variant to `./sponge/gzhm_variants_1/run/<VARIANT>`
+* Finally `./bench/plot_graph.py` will generate graphs for all variants in `./bench/gzhm_variants_1/run/`
+
+### Using PERF
+
+To use perf, make sure to use .`/bench/paper_final/churn_perf.sh` instead of the above script. It uses `-DCMAKE_BUILD_TYPE=RelWithDebInfo` and runs the 
+
+This will create `perf.data` Will only store perf report of last run variant.
+
