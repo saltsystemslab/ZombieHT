@@ -101,7 +101,7 @@ The above script will
 * Will run a churn test for 220 cycles.
 	* Refer to `src/hm_churn.cc` for the flags set in `./bench/paper_final/churn.sh`
 * Generates test results for each variant to `./sponge/gzhm_variants_1/run/<VARIANT>`
-* Finally `./bench/plot_graph.py` will generate graphs for all variants in `./bench/gzhm_variants_1/run/`
+* Finally `./bench/plot_graph.py` will generate graphs for all variants in `./bench/gzhm_variants_3/run/`
 
 ### Using PERF
 
