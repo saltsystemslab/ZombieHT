@@ -4,3 +4,6 @@
 [submodule "external/clht"]
 	path = external/clht
 	url = git@github.com:saltsystemslab/CLHT
+[submodule "external/libcuckoo"]
+	path = external/libcuckoo
+	url = git@github.com:saltsystemslab/libcuckoo

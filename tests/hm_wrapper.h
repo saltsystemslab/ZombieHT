@@ -7,6 +7,8 @@
 #include "iceberg_wrapper.h"
 #elif USE_CLHT
 #include "clht_wrapper.h"
+#elif USE_CUCKOO
+#include "cuckoo_wrapper.h"
 #else
 #include "qfhm_wrapper.h"
 #endif 

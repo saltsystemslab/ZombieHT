@@ -7,6 +7,9 @@ git submodule update --init --recursive
 cd external/abseil-cpp
 git checkout linear-probe
 cd ../../
+cd external/libcuckoo
+git checkout get_size
+cd ../../
 ./run_all.sh # Runs all throughput tests.
 ```
 

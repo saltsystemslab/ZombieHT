@@ -83,6 +83,8 @@ elseif (VARIANT STREQUAL "ICEBERG")
   add_compile_definitions(-DUSE_ICEBERG)
 elseif (VARIANT STREQUAL "CLHT")
   add_compile_definitions(-DUSE_CLHT)
+elseif (VARIANT STREQUAL "CUCKOO")
+  add_compile_definitions(-DUSE_CUCKOO)
 else()
   message("Unkonwn Variant")
 endif()
@@ -97,6 +99,7 @@ include_directories(
   tests/
   external/clht/include
   external/clht/external/include
+  external/libcuckoo
 )
 
 add_library(hashutil src/hashutil.c)
@@ -137,7 +140,7 @@ elseif(VARIANT STREQUAL "CLHT")
   # TODO: Add a script that builds the right version.
   target_link_libraries(hm_churn ssl crypto ${CMAKE_SOURCE_DIR}/external/clht/libclht.a)
 else()
-  target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil)
+  target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil pthread)
 endif()
 
 add_executable(join_test bench/join_bench.cc)
