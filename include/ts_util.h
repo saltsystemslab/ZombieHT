@@ -461,8 +461,22 @@ static size_t _get_ts_space(HM *hm) {
 #elif AMORTIZED_REBUILD
     ts_space = (2 * nslots) / (nslots - nelts);
 #endif
+/*
+    if (ts_space > 10) {
+      fprintf(stderr, "nslots: %ld nelts: %ld ts_space:%ld\n", nslots, nelts, ts_space);
+    }
+*/
   }
   return ts_space;
+}
+
+// load factor = 1 - 1/x.
+static size_t _get_x(HM *hm) {
+  // Default tombstone space: 2x, x=1/(1-load_factor). [Graveyard paper]
+  size_t nslots = hm->metadata->nslots;
+  size_t noccupied = hm->metadata->noccupied_slots;
+  size_t nelts = hm->metadata->nelts;
+  return nslots / (nslots - nelts);
 }
 
 #endif

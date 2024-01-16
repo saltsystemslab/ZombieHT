@@ -324,7 +324,7 @@ def plot_load_phase():
         df['se'] = (df['x_0'] * load_factor(d) / 100.0) * (0.95 * 1694498816) / memory_usage
         df['lf'] = df['x_0'] * 0.95 #(df['x_0'] * load_factor(d) / 100.0) * (0.95 * 1694498816) / memory_usage
         df["y_0"] = df["y_0"] * 1000.0 
-        print(d,df["y_0"].mean(), hmean(df["y_0"]))
+        print(d,"MEAN:", df["y_0"].mean(), "HMEAN: ", hmean(df["y_0"]))
         df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
         plt.plot(df["lf"], df["y_0"], label=d, marker='.')
         plt.xlabel("load_factor" )

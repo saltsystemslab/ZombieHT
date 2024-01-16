@@ -21,7 +21,12 @@ void qft_rebuild(QF *qf, uint8_t flags);
  */
 int _deamortized_rebuild(HM *hm) {
   size_t from_run = hm->metadata->rebuild_run;
-  size_t until_run = from_run + hm->metadata->rebuild_interval;
+  size_t until_run; 
+  if (hm->metadata->rebuild_interval) {
+    until_run = from_run + hm->metadata->rebuild_interval;
+  } else {
+    until_run = from_run + _get_x(hm);
+  }
   hm->metadata->rebuild_run = until_run;
   if (until_run >= hm->metadata->nslots) { // Should we add a unlikely here?
     until_run = hm->metadata->nslots;
@@ -45,9 +50,10 @@ int _deamortized_rebuild(HM *hm) {
 int _deamortized_rebuild(HM *hm, uint64_t key, uint8_t flags) {
   size_t ts_space = _get_ts_space(hm);
   size_t rebuild_interval = hm->metadata->rebuild_interval;
+  // fprintf(stderr, "rebuild_interval: %ld tombstone_space: %ld\n", rebuild_interval, ts_space);
   if (rebuild_interval == 0) {
     // Default rebuild interval: 1.5(pts space) [Our paper]
-    rebuild_interval = 1.5 * ts_space;
+    rebuild_interval = _get_x(hm);
   }
   uint64_t hash = key2hash(hm, key, flags);
   uint64_t hash_remainder, hash_bucket_index; // remainder and quotient.
