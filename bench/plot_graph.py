@@ -326,8 +326,8 @@ def plot_load_phase():
         df["y_0"] = df["y_0"] * 1000.0 
         print(d,df["y_0"].mean(), hmean(df["y_0"]))
         df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
-        plt.plot(df["se"], df["y_0"], label=d, marker='.')
-        plt.xlabel("percent of keys inserted" )
+        plt.plot(df["lf"], df["y_0"], label=d, marker='.')
+        plt.xlabel("load_factor" )
         plt.ylabel("throughput")
     plt.legend()
     plt.title("LOAD PHASE")
