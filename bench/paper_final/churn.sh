@@ -21,7 +21,7 @@ fi
 
 # Second flag is workload (mixed for throughput, nomixed for latency)
 if [ $2 -eq 0 ]; then
-  churn_args="-c 220 -m 0"
+  churn_args="-c 320 -m 0"
   latency=""
 elif [ $2 -eq 1 ]; then
   churn_args="-c 120 -m 0 -z 50"
