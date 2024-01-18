@@ -114,6 +114,13 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
         plt.xlabel("test progression (churn_cycle)" )
         if csv:
             grouped.to_csv(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"))
+            # Hack to show that TRHM dies. Adding 0 throughput if we didn't get that far.
+            NUM_CHURN_CYCLES=300
+            if (len(grouped) < NUM_CHURN_CYCLES + 1):
+                with open(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"), "a") as csvfile:
+                    for i in range(len(grouped), NUM_CHURN_CYCLES):
+                        csvfile.write(f"{i},0,0,0\n")
+
         plt.ylabel("throughput (ops/usec)")
     if stats:
         #print(covar)
@@ -262,7 +269,7 @@ def latency_distribution(dir, ops):
         print(hsum.to_markdown())
         print(os.path.join(csv_dir, f"{op}.txt"))
         with open(os.path.join(csv_dir, f"{op}.tex"), "w") as table_file:
-            table_file.write(hsum[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
+            table_file.write(hsum[["GZHM", "RHM", "TRHM", "GRHM", "GZHMV", "ABSL", "CLHT", "ICEBERG", "CUCKOO"]].to_latex(float_format='%.2f'))
 
 def humanize_bytes(bytes):
     bytes_str = ('%d B') % (bytes)

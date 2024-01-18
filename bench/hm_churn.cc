@@ -429,9 +429,10 @@ std::vector<hm_op> generate_churn_ops(
   } else {
     for (int churn_op = 0; churn_op < nchurn_delete_ops; churn_op++) {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
-      if (repeated.find(index) != repeated.end()) {
-        continue;
+      while (repeated.find(index) != repeated.end()) {
+        index = (index + 1) % kv.size();
       }
+      keys_indexes_to_delete[churn_op] = index;
       repeated.insert(index);
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
@@ -440,10 +441,6 @@ std::vector<hm_op> generate_churn_ops(
     repeated.clear();
     for (int churn_op = 0; churn_op < nchurn_insert_ops; churn_op++) {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
-      if (repeated.find(index) != repeated.end()) {
-        continue;
-      }
-      repeated.insert(index);
 
       uint64_t key = (new_keys[churn_op] & BITMASK(key_bits));
       uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
@@ -451,14 +448,12 @@ std::vector<hm_op> generate_churn_ops(
       // Insert the key into the slot that was just deleted.
       kv[index] = make_pair(key, value);
     }
-    repeated.clear();
     for (int churn_op = 0; churn_op < nchurn_lookup_ops; churn_op++) {
       uint64_t index = keys_indexes_to_query[churn_op] % kv.size();
       uint64_t key = kv[index].first;
       uint64_t value = kv[index].second;
       ops.push_back(hm_op{LOOKUP, key, value});
     }
-    printf("lost_slots: %ld\n", lost_slots);
   }
   delete keys_indexes_to_delete;
   delete keys_indexes_to_query;
