@@ -415,7 +415,11 @@ static int find(const QF *qf, const uint64_t quotient, const uint64_t remainder,
     *run_end_index = *run_start_index;
     return 0;
   }
+  #ifdef FIND_RUNEND
   *run_end_index = run_end(qf, quotient) + 1;
+  #else
+  *run_end_index = runends_select(qf, *run_start_index, 0) + 1;
+  #endif
   uint64_t curr_remainder;
 #ifdef UNORDERED
   uint64_t tombstone_in_run = -1;
