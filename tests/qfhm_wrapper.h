@@ -13,24 +13,40 @@ extern inline int g_init(uint64_t nslots, uint64_t key_size, uint64_t value_size
 {
  	// log_2(nslots) will be used as quotient bits of key_size.
 	value_mem_compensation = nslots * sizeof(uint64_t);
+	#ifdef USE_INVERTIBLE_HASH
+	return hm_malloc(&g_hashmap, nslots, key_size, value_size, QF_HASH_INVERTIBLE, 0, max_load_factor);
+	#else
 	return hm_malloc(&g_hashmap, nslots, key_size, value_size, QF_HASH_NONE, 0, max_load_factor);
+	#endif
 }
 
 extern inline int g_insert(uint64_t key, uint64_t val)
 {
+	#ifdef USE_INVERTIBLE_HASH
+	return hm_insert(&g_hashmap, key, val, QF_NO_LOCK);
+	#else
 	return hm_insert(&g_hashmap, key, val, QF_NO_LOCK | QF_KEY_IS_HASH);
+	#endif
 }
 
 extern inline int g_lookup(uint64_t key, uint64_t *val)
 {
+	#ifdef USE_INVERTIBLE_HASH
+	int ret = hm_lookup(&g_hashmap, key, val, QF_NO_LOCK);
+	#else
 	int ret = hm_lookup(&g_hashmap, key, val, QF_NO_LOCK | QF_KEY_IS_HASH);
+	#endif
 	if (ret == QF_DOESNT_EXIST) return QF_DOESNT_EXIST;
 	return 0;
 }
 
 extern inline int g_remove(uint64_t key)
 {
+	#ifdef USE_INVERTIBLE_HASH
+	int ret = hm_remove(&g_hashmap, key, QF_NO_LOCK);
+	#else
 	int ret = hm_remove(&g_hashmap, key, QF_NO_LOCK | QF_KEY_IS_HASH);
+	#endif
 	if (ret == QF_DOESNT_EXIST) return QF_DOESNT_EXIST;
 	return 0;
 }

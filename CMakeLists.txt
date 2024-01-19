@@ -63,6 +63,8 @@ elseif (VARIANT STREQUAL "GZHM")
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD)
 elseif (VARIANT STREQUAL "GZHM_ADAPTIVE") # Same as above, but has PTS = 0
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD)
+elseif (VARIANT STREQUAL "GZHM_ADAPTIVE_INVERTIBLEHASH") # Same as above, but has PTS = 0
+  add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DUSE_INVERTIBLE_HASH)
 elseif (VARIANT STREQUAL "GZHM_ADAPTIVE_OLDFIND") # Same as above, but has PTS = 0, and uses 2 find_run_end calls in find
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DFIND_USING_RUNEND)
 elseif (VARIANT STREQUAL "GZHM_MEMMOVE")
@@ -116,7 +118,7 @@ add_library(hashutil src/hashutil.c)
 add_library(gqf src/gqf.c)
 add_library(hm src/hm.c)
 add_library(pc src/partitioned_counter.c)
-add_executable(hm_churn bench/hm_churn.cc)
+add_executable(hm_churn bench/hm_churn_dataset.cc)
 # Join bench always require iceberg hashtable.
 add_subdirectory(external/iceberghashtable)
 
