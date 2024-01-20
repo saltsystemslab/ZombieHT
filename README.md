@@ -1,5 +1,8 @@
 # Setup
 
+THIS BRANCH ASSUMES SOSD data EXISTS in directory `data`. 
+TODO: Add instructions to setup data. For now run `./run_dataset.sh`.
+
 ```bash
 git clone git@github.com:saltsystemslab/grht
 cd grht

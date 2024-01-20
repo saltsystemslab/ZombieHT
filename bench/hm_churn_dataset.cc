@@ -23,6 +23,31 @@ using namespace std::chrono;
 #include "hm_op.h"
 #include "hm_wrapper.h"
 
+/*
+ *   For any 1<k<=64, let mask=(1<<k)-1. hash_64() is a bijection on [0,1<<k),
+ *   which means
+ *     hash_64(x, mask)==hash_64(y, mask) if and only if x==y. hash_64i() is
+ *     the inversion of
+ *       hash_64(): hash_64i(hash_64(x, mask), mask) == hash_64(hash_64i(x,
+ *       mask), mask) == x.
+ */
+
+// Thomas Wang's integer hash functions. See
+// <https://gist.github.com/lh3/59882d6b96166dfc3d8d> for a snapshot.
+
+uint64_t hash64(uint64_t key, uint64_t mask)
+{
+	key = (~key + (key << 21)) & mask; // key = (key << 21) - key - 1;
+	key = key ^ key >> 24;
+	key = ((key + (key << 3)) + (key << 8)) & mask; // key * 265
+	key = key ^ key >> 14;
+	key = ((key + (key << 2)) + (key << 4)) & mask; // key * 21
+	key = key ^ key >> 28;
+	key = (key + (key << 31)) & mask;
+	return key;
+}
+
+
 #define MAX_VALUE(nbits) ((1ULL << (nbits)) - 1)
 #define BITMASK(nbits) ((nbits) == 64 ? 0xffffffffffffffff : MAX_VALUE(nbits))
 
@@ -381,8 +406,8 @@ void generate_load_ops(
   RAND_bytes((unsigned char *)values,
              num_initial_load_ops * sizeof(num_initial_load_ops));
   for (uint64_t i = 0; i < num_initial_load_ops; i++) {
-    uint64_t index = keys[i] % all_keys.size();
-    uint64_t key = (all_keys[index] & BITMASK(key_bits));
+    uint64_t index = i % all_keys.size();
+    uint64_t key = hash64(all_keys[index], BITMASK(key_bits));
     uint64_t value = key;
     kv.push_back(std::make_pair(key, value));
     ops.push_back(hm_op{INSERT, key, value});
@@ -467,7 +492,8 @@ std::vector<hm_op> generate_churn_ops(
     for (int churn_op = 0; churn_op < nchurn_insert_ops; churn_op++) {
       uint32_t index = keys_indexes_to_delete[churn_op] % kv.size();
       uint64_t new_key_index = new_keys[churn_op] % all_keys.size();
-      uint64_t key = all_keys[new_key_index];
+      // uint64_t key = all_keys[new_key_index];
+      uint64_t key = hash64(all_keys[new_key_index], BITMASK(key_bits));
       uint64_t value = (new_values[churn_op] & BITMASK(value_bits));
       ops.push_back(hm_op{INSERT, key, value});
       // Insert the key into the slot that was just deleted.
