@@ -23,6 +23,16 @@ value_bits = int(lines[3])
 load_factor = int(lines[4])
 churn_cycles = int(lines[5])
 churn_ops = int(lines[6]) 
+lookup_ops = int(lines[8]) 
+
+for v in variants:
+    f = open("%s/%s/test_params.txt" % (dir, v), "r")
+    lines = f.readlines()
+    churn_cycles = max(churn_cycles, int(lines[5]))
+    churn_ops = max(churn_ops, int(lines[6]))
+    lookup_ops = max(lookup_ops, int(lines[8]))
+
+
 
 def load_factor(variant):
     f = open("%s/%s/test_params.txt" % (dir, variant), "r")
@@ -34,7 +44,7 @@ for l in lines[6:]:
     churn_points.append(float(l))
 
 def add_caption():
-    plt.text(.5, -0.15, f"q_bits={quotient_bits}, r_bits={key_bits - quotient_bits + value_bits}, ChurnOps: {churn_ops}, ChurnCycles: {churn_cycles}", ha='center', transform=plt.gca().transAxes)
+    plt.text(.5, -0.15, f"Update ChurnOps: {churn_ops}, Lookup ChurnOps: {lookup_ops} ChurnCycles: {churn_cycles}", ha='center', transform=plt.gca().transAxes)
 
 def plot_tombstone():
     plt.figure(figsize=(10,6))
@@ -110,12 +120,18 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
         if stats:
             thrput_table[d] = grouped['thrput'].describe()
             covar[d] = thrput_table[d]['std']/thrput_table[d]['mean'] * 100.0
-        plt.plot(grouped.index, grouped["thrput"], label="%s: %.3f" % (d, thrput) )
+        l = d
+        if d == 'ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED':
+            l = 'GZHM(V)'
+        if d == 'ICEBERG_SINGLE_THREAD':
+            l = 'ICEBERG'
+
+        plt.plot(grouped.index, grouped["thrput"], label="%s: %.3f" % (l, thrput) )
         plt.xlabel("test progression (churn_cycle)" )
         if csv:
             grouped.to_csv(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"))
             # Hack to show that TRHM dies. Adding 0 throughput if we didn't get that far.
-            NUM_CHURN_CYCLES=300
+            NUM_CHURN_CYCLES=churn_cycles
             if (len(grouped) < NUM_CHURN_CYCLES + 1):
                 with open(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"), "a") as csvfile:
                     for i in range(len(grouped), NUM_CHURN_CYCLES):
@@ -128,7 +144,8 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
         #print(covar)
         thrput_table = pd.concat([thrput_table, covar])
         #print(thrput_table.columns)
-        #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_markdown())
+        #print(thrput_table[["GZHM", "GZHM_ADAPTIVE", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_markdown())
+        #print(thrput_table[["GZHM", "GZHM_ADAPTIVE", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
         #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
         #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_markdown())
         #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
@@ -137,7 +154,9 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
     ot.index.names = ['C_B']
     ot.to_csv(os.path.join(csv_dir, f"{name}_throughput.csv"))
     plt.legend()
-    plt.title(f"CHURN PHASE {name} Throughput")
+    update_ratio = (2 * churn_ops) / (lookup_ops + 2 * churn_ops) * 100.0
+    lookup_ratio = (lookup_ops) / (lookup_ops + 2 * churn_ops) * 100.0
+    plt.title(f"{name} Throughput, Update:Lookup Ratio = {update_ratio:.0f}:{lookup_ratio:.0f}")
     add_caption()
     plt.tight_layout()
     plt.savefig(os.path.join(dir, "plot_churn_%s.png" % name))
@@ -354,9 +373,9 @@ plot_churn_op_throuput_churn("DELETE", ["DELETE"], csv=True, stats=True)
 plot_churn_op_throuput_churn("INSERT", ["INSERT"], csv=True, stats=True)
 plot_churn_op_throuput_churn("INSERT", ["INSERT"], csv=True, stats=True)
 plot_churn_op_throuput_churn("LOOKUP", ["LOOKUP"], csv=True, stats=True)
-plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True, stats=True)
 plot_churn_op_throuput_churn("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"])
-plot_churn_op_throuput_churn("MIXED", ["MIXED"], csv=True)
+#plot_churn_op_throuput_churn("MIXED", ["MIXED"], csv=True)
+plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True, stats=True)
 plot_latency_boxplots("DELETE")
 plot_latency_boxplots("INSERT")
 plot_latency_boxplots("LOOKUP")
