@@ -1,4 +1,12 @@
-# Setup
+# Zombie Hashing
+
+Zombie Hashing is a linear probing hashing scheme that ensures consistent performance with high data locality even at high load factors. Linear probing hash tables use tombstones (deletion markers) to speed up hash table operations and mitigate primary clustering effects. However, tombstones require periodic redistribution, requiring a complete halt of operations and consequently inconsistent performance. Zombie Hashing redistributes tombstones within small windows, eliminating the need for periodic halts required in linear probing schemes. 
+
+We implement Zombie Hashing in two variants, an ordered compact linear probing hash table([code](src/gqf.c)) and an unordered vectorized linear probing hash table ([code](external/abseil-cpp/absl/container/internal/raw_hash_set.h)). 
+
+More details about the implementation and theoretical guarantees are in the paper.
+
+## Quick Start
 
 ```bash
 git clone git@github.com:saltsystemslab/grht
@@ -10,22 +18,11 @@ cd ../../
 cd external/libcuckoo
 git checkout get_size
 cd ../../
-./run_all.sh # Runs all throughput tests.
+./run_throughput.sh # Runs all throughput tests.
+./run_latency.sh # Runs all throughput tests.
 ```
 
-
-# ZombieHashmap
-
-ZombieHashmap is a hashmap that redistributes tombstones in a deamortized schedule. 
-
-Conventional wisdom dictates if using tombstones to mark deletions, they must be cleared completely. This is usually done in a stop-the-world fashion.
-
-[Bender, M. A., Kuszmaul, B. C., &amp; Kuszmaul, W. (2021, July 2). Linear probing revisited: Tombstones mark the death of primary clustering.](https://arxiv.org/abs/2107.01250) 
-shows that spreading the tombstones apart is more optimal at steady load factors. 
-
-ZombieHashmap spreads tombstones on the back of hashmap operations, thus not requiring to freeze the hashmap to spread tombstones.
-
-## Churn Benchmark
+## Churn Benchmark Details
 
 The [ChurnBenchmark](bench/hm_churn.cc) will 
 
