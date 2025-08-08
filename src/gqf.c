@@ -131,6 +131,7 @@ uint64_t qf_init_advanced(QF *qf, uint64_t nslots, uint64_t key_bits,
   qf->metadata->noccupied_slots = 0;
 
 #ifdef QF_TOMBSTONE
+  qf->metadata->min_item_to_rebuild = MIN_REBUILD_LF * qf->metadata->nslots;
   // Set all tombstones
   qfblock *b;
   for (uint64_t i = 0; i < qf->metadata->nblocks; i++) {

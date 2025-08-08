@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import sys
 import pandas as pd
+import numpy as np
 import os
 from matplotlib import pyplot as plt
 import json
@@ -252,7 +253,7 @@ for d in variants:
     df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
     df["y_0"] = df["y_0"] * 1000.0 
     df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
-    plt.plot(df["x_0"], df["y_0"], label=d, marker='.')
+    plt.plot(df["x_0"], df["y_0"], label=d +':' + str(df["y_0"].mean()), marker='.')
     plt.xlabel("percent of keys inserted" )
     plt.ylabel("throughput")
 plt.legend()
@@ -352,7 +353,7 @@ def plot_load_phase():
         df["y_0"] = df["y_0"] * 1000.0 
         print(d,"MEAN:", df["y_0"].mean(), "HMEAN: ", hmean(df["y_0"]))
         df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
-        plt.plot(df["lf"], df["y_0"], label=d, marker='.')
+        plt.plot(df["lf"], df["y_0"], label=d + ':' + str(df["y_0"].mean()), marker='.')
         plt.xlabel("load_factor" )
         plt.ylabel("throughput")
     plt.legend()

@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 #define MAGIC_NUMBER 1018874902021329732
+#define MIN_REBUILD_LF 0.80
 
 /* Can be 
    0 (choose size at run-time), 
@@ -103,6 +104,7 @@ extern "C" {
 		uint64_t nrebuilds;      	// Number of rebuilds per loop.
 		uint64_t rebuild_interval;// Number of slots to be rebuilt each time.
 		uint64_t rebuild_cd;  		// Rebuild window count down.
+		uint64_t min_item_to_rebuild;
 		#endif
 	} quotient_filter_metadata;
 

@@ -56,7 +56,13 @@ int hm_insert(HM *hm, uint64_t key, uint64_t value, uint8_t flags) {
 #ifdef REBUILD_DEAMORTIZED_GRAVEYARD
   if (ret < 0)
     abort();
-  _deamortized_rebuild(hm);
+    #ifdef REBUILD_WITH_MIN_LF
+    if (hm->metadata->noccupied_slots > hm->metadata->min_item_to_rebuild) {
+      _deamortized_rebuild(hm);
+    }
+    #else
+    _deamortized_rebuild(hm);
+    #endif
 #elif REBUILD_AT_INSERT
   if (ret < 0)
     return ret;

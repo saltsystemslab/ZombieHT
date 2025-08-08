@@ -19,6 +19,8 @@ endif()
 
 if (VARIANT STREQUAL "GZHM_ADAPTIVE")
   add_compile_definitions(-DC_B=0.0) # TO set rebuild interval to 0, then makes it dynamic.
+elseif (VARIANT STREQUAL "GZHM_ADAPTIVE_NO_LF_CHECK")
+  add_compile_definitions(-DC_B=0.0) # TO set rebuild interval to 0, then makes it dynamic.
 else()
   add_compile_definitions(-DC_B=${C_B})
 endif()
@@ -61,9 +63,11 @@ elseif (VARIANT STREQUAL "GRHM_NO_INSERT")
   add_compile_definitions(-DUSE_GRHM_NO_INSERT -DQF_TOMBSTONE -DREBUILD_NO_INSERT -DAMORTIZED_REBUILD)
 elseif (VARIANT STREQUAL "GZHM")
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD)
-elseif (VARIANT STREQUAL "GZHM_ADAPTIVE") # Same as above, but has PTS = 0
+elseif (VARIANT STREQUAL "GZHM_ADAPTIVE_NO_LF_CHECK") # Same as above, but has C_B = 0
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD)
-elseif (VARIANT STREQUAL "GZHM_ADAPTIVE_OLDFIND") # Same as above, but has PTS = 0, and uses 2 find_run_end calls in find
+elseif (VARIANT STREQUAL "GZHM_ADAPTIVE") # Same as above, but has C_B = 0
+  add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DREBUILD_WITH_MIN_LF)
+elseif (VARIANT STREQUAL "GZHM_ADAPTIVE_OLDFIND") # Same as above, but has C_B = 0, and uses 2 find_run_end calls in find
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DFIND_USING_RUNEND)
 elseif (VARIANT STREQUAL "GZHM_MEMMOVE")
   add_compile_definitions(-DUSE_GZHM -DQF_TOMBSTONE -DREBUILD_DEAMORTIZED_GRAVEYARD -DMEMMOVE_PUSH)

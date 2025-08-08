@@ -1,48 +1,52 @@
 #!/bin/bash
 
-# Ordered hash tables.
+VARIANTS=(GRHM)
+UPDATE_PCTS=(50 5)
+LOAD_FACTORS=(95)
+THROUGHPUT_FREQ=1
 
-## GZHM(C)
-./bench/paper_final/churn_50_50.sh 3 0 GZHM_ADAPTIVE
-./bench/paper_final/churn_25_75.sh 3 0 GZHM_ADAPTIVE
-./bench/paper_final/churn_5_95.sh 3 0 GZHM_ADAPTIVE
+for UPDATE_PCT in ${UPDATE_PCTS[@]}; do
+for LOAD_FACTOR in ${LOAD_FACTORS[@]}; do
+for VARIANT in ${VARIANTS[@]}; do
 
-## RobinHood HashMap (RHM)
-./bench/paper_final/churn_50_50.sh 3 0 RHM
-./bench/paper_final/churn_25_75.sh 3 0 RHM
-./bench/paper_final/churn_5_95.sh 3 0 RHM
+echo "./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}"
+time ./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}
 
-## RobinHood + Tombstone HashMap (TRHM)
-./bench/paper_final/churn_50_50.sh 3 0 TRHM
-./bench/paper_final/churn_25_75.sh 3 0 TRHM
-./bench/paper_final/churn_5_95.sh 3 0 TRHM
+done
+done
+done
 
-## Graveyard Hashmap (GRHM)
-./bench/paper_final/churn_50_50.sh 3 0 GRHM
-./bench/paper_final/churn_25_75.sh 3 0 GRHM
-./bench/paper_final/churn_5_95.sh 3 0 GRHM
+VARIANTS=(GRHM GZHM_ADAPTIVE ABSL ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED TRHM RHM)
+#VARIANTS=(ICEBERG_SINGLE_THREAD CLHT CUCKOO)
+UPDATE_PCTS=(50)
+LOAD_FACTORS=(75 85)
+THROUGHPUT_FREQ=1
 
-# Unordered hash tables.
+for UPDATE_PCT in ${UPDATE_PCTS[@]}; do
+for LOAD_FACTOR in ${LOAD_FACTORS[@]}; do
+for VARIANT in ${VARIANTS[@]}; do
 
-# GZHM(V)
-./bench/paper_final/churn_50_50.sh 3 0 ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED
-./bench/paper_final/churn_25_75.sh 3 0 ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED
-./bench/paper_final/churn_5_95.sh 3 0 ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED
+echo "./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}"
+time ./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}
 
+done
+done
+done
 
-# ICEBERG
-./bench/paper_final/churn_50_50.sh 3 0 ICEBERG_SINGLE_THREAD
-./bench/paper_final/churn_25_75.sh 3 0 ICEBERG_SINGLE_THREAD
-./bench/paper_final/churn_5_95.sh 3 0 ICEBERG_SINGLE_THREAD
+VARIANTS=(GZHM_ADAPTIVE TRHM RHM)
+UPDATE_PCTS=(50)
+LOAD_FACTORS=(95)
+THROUGHPUT_FREQ=1
 
-# CLHT
-./bench/paper_final/churn_50_50.sh 3 0 CLHT
-./bench/paper_final/churn_25_75.sh 3 0 CLHT
-./bench/paper_final/churn_5_95.sh 3 0 CLHT
+for UPDATE_PCT in ${UPDATE_PCTS[@]}; do
+for LOAD_FACTOR in ${LOAD_FACTORS[@]}; do
+for VARIANT in ${VARIANTS[@]}; do
 
-# LIBCUCKOO
-./bench/paper_final/churn_50_50.sh 3 0 CUCKOO
-./bench/paper_final/churn_25_75.sh 3 0 CUCKOO
-./bench/paper_final/churn_5_95.sh 3 0 CUCKOO
+echo "./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}"
+time ./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}
 
+done
+done
+done
 
+# Add 5\% update with number of churn cycles to be 1500 
