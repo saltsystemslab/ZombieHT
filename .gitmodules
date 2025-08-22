@@ -7,3 +7,9 @@
 [submodule "external/libcuckoo"]
 	path = external/libcuckoo
 	url = git@github.com:saltsystemslab/libcuckoo
+[submodule "external/iceberght"]
+	path = external/iceberght
+	url = git@github.com:saltsystemslab/iceberghashtable
+[submodule "external/ssmem"]
+	path = external/ssmem
+	url = https://github.com/LPD-EPFL/ssmem
