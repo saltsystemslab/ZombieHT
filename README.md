@@ -18,6 +18,9 @@ cd ../../
 cd external/libcuckoo
 git checkout get_size
 cd ../../
+cd external/clht
+make dependencies clht_lb
+cd ../../
 ./run_throughput.sh # Runs all churn benchmark tests to measure throughput.
 ./run_latency.sh # Runs all churn benchmark tests to measure latency.
 ```

@@ -4,12 +4,15 @@ INIT_LF=$3 #Initial Load Factor
 UPDATE_PCT=$4 # $4 + $5 must be 100, but we don't check
 THROUGHPUT_FREQ=$5 # number of points to collect per churn cycle.
 #Note this just divides the cycles into smaller churn cycles, 
+CHURN_CYCLES=$6 # Number of churn cyles to run in total
 
+echo ${CHURN_CYCLES}
 echo ${THROUGHPUT_FREQ}
 
 DIR="sponge_paper/large-test_init-lf-${INIT_LF}_update-pct-${UPDATE_PCT}_thput-freq_${THROUGHPUT_FREQ}"
 QF_ARGS="-k 64 -q 27 -v 0"
-CYCLES=$((320 * ${THROUGHPUT_FREQ}))
+CYCLES=$((${CHURN_CYCLES} * ${THROUGHPUT_FREQ}))
+echo ${CYCLES}
 
 case $UPDATE_PCT in
     5)
@@ -29,7 +32,7 @@ if [ $MIXED_WORKLOAD == "thput" ]; then
   churn_args="-c ${CYCLES} -m 0"
   latency=""
 elif [ $MIXED_WORKLOAD == "latency" ]; then
-  churn_args="-c ${CYCLES} -m 1"
+  churn_args="-c ${CYCLES} -z 50"
   latency="latency"
 else 
   echo "-m Specify measurement 'thput' or 'latency'"
@@ -41,7 +44,7 @@ run_args="${QF_ARGS} -w ${UPDATES} -l ${LOOKUPS} -i ${INIT_LF} -s 0 -t 1 -g 50 $
 echo $run_args
 
 
-out_dir="$DIR/gzhm_variants${latency}_$1"
+out_dir="$DIR/gzhm_variants_$1"
 build_dir=${out_dir}/build
 run_dir=${out_dir}/run
 result_dir=${out_dir}/result

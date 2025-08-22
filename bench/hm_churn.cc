@@ -35,12 +35,12 @@ int nchurn_delete_ops = 500;
 int nchurn_lookup_ops = 500;
 int npoints = 50;
 int should_record = 0;
-int churn_latency_bucket_size = 10; // Latency is sampled as instantaneous latency of 10 operations.
+int churn_latency_bucket_size = 0; // Latency is sampled as instantaneous latency of x operations. If 0, latency will not be measured.
 int churn_thrput_resolution = 4;
 int mixed_workload = 0;
 int log_commit_freq = 10; // Commit results every commit_freq cycles.
 int metadata_dump_freq = 100; // Dump the metadata every 200 churn cycles.
-int churn_window_for_latency = 0;
+int churn_window_for_latency = 50; // Only measure latency in last 10 rounds.
 std::string record_file = "test_case.txt";
 std::string dir = "./bench_run/";
 uint64_t num_slots = 0;
@@ -559,14 +559,14 @@ void run_churn(
         uint64_t start, 
         std::string thrput_output_file,
         std::string latency_output_file,
-        std::string metadata_output_file) {
+        std::string metadata_output_file,
+        bool should_measure_latency) {
   vector<ThrputMeasure> thrput_measures;
   vector<LatencyMeasure> latency_measures;
   vector<HmMetadataMeasure> metadata_measures;
   uint64_t throughput_ops_per_bucket; 
   int status = 0;
   int churn_start_op = start;
-  bool should_measure_latency = false;
 
   auto test_begin = chrono::high_resolution_clock::now();
   //Write headers
@@ -579,27 +579,27 @@ void run_churn(
     churn_start_op = 0;
     generate_churn_ops(ops, kv);
     fprintf(LOG, "Running Churn cycle: %d\n", i);
-    should_measure_latency = (nchurns - i < churn_window_for_latency);
+    bool start_measuring_latency = should_measure_latency && ((nchurns - i < churn_window_for_latency));
     if (mixed_workload) {
       int nchurn_ops = nchurn_insert_ops + nchurn_delete_ops + nchurn_lookup_ops;
       throughput_ops_per_bucket = nchurn_ops / churn_thrput_resolution;
-      status = profile_ops(i, "MIXED", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op + nchurn_ops, throughput_ops_per_bucket, should_measure_latency);
+      status = profile_ops(i, "MIXED", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op + nchurn_ops, throughput_ops_per_bucket, start_measuring_latency);
       if (status) break;
       churn_start_op += nchurn_ops;
     } else {
       // DELETE
       throughput_ops_per_bucket = nchurn_delete_ops / churn_thrput_resolution;
-      status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, throughput_ops_per_bucket, should_measure_latency);
+      status = profile_ops(i, "DELETE", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_delete_ops, throughput_ops_per_bucket, start_measuring_latency);
       if (status) break;
       churn_start_op += nchurn_delete_ops;
       // INSERT 
       throughput_ops_per_bucket = nchurn_insert_ops / churn_thrput_resolution;
-      status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, throughput_ops_per_bucket, should_measure_latency);
+      status = profile_ops(i, "INSERT", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_insert_ops, throughput_ops_per_bucket, start_measuring_latency);
       if (status) break;
       churn_start_op += nchurn_insert_ops;
       // LOOKUP
       throughput_ops_per_bucket = nchurn_lookup_ops / churn_thrput_resolution;
-      status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, throughput_ops_per_bucket, should_measure_latency);
+      status = profile_ops(i, "LOOKUP", thrput_measures, latency_measures, ops, churn_start_op, churn_start_op+ nchurn_lookup_ops, throughput_ops_per_bucket, start_measuring_latency);
       if (status) break;
       churn_start_op += nchurn_lookup_ops;
     }
@@ -672,6 +672,8 @@ void churn_test() {
   float max_load_factor = initial_load_factor / 100.0;
   printf("max_load_factor: %f\n", max_load_factor);
 
+  bool should_measure_latency = (churn_latency_bucket_size > 0)? true : false;
+
   std::vector<hm_op> ops;
   std::vector<std::pair<uint64_t, uint64_t>> kv;
   generate_load_ops(ops, kv);
@@ -680,7 +682,7 @@ void churn_test() {
   // LOAD PHASE.
   run_load(ops, num_initial_load_keys, npoints, filename_load);
   // CHURN PHASE.
-  run_churn(ops, kv, num_initial_load_keys, filename_churn_thrput, filename_churn_latency, filename_churn_metadata);
+  run_churn(ops, kv, num_initial_load_keys, filename_churn_thrput, filename_churn_latency, filename_churn_metadata, should_measure_latency);
   // Query Memory.
   write_test_params();
   g_destroy();

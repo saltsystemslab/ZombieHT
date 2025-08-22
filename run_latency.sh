@@ -1,32 +1,18 @@
 #!/bin/bash
+VARIANTS=(CLHT ABSL ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED ICEBERG_SINGLE_THREAD CLHT CUCKOO GRHM TRHM RHM GZHM_ADAPTIVE)
+UPDATE_PCTS=(50)
+LOAD_FACTORS=(95)
+THROUGHPUT_FREQ=1
+CHURN_CYCLES=50
 
-# Ordered hash tables.
+for UPDATE_PCT in ${UPDATE_PCTS[@]}; do
+for LOAD_FACTOR in ${LOAD_FACTORS[@]}; do
+for VARIANT in ${VARIANTS[@]}; do
 
-## GZHM(C)
-./bench/paper_final/churn_5_95.sh 3 1 GZHM_ADAPTIVE
+echo "./bench/paper_final/churn.sh latency ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}"
+time ./bench/paper_final/churn.sh latency ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ} ${CHURN_CYCLES}
+done
+done
+done
 
-## RobinHood HashMap (RHM)
-./bench/paper_final/churn_5_95.sh 3 1 RHM
-
-## RobinHood + Tombstone HashMap (TRHM)
-./bench/paper_final/churn_5_95.sh 3 1 TRHM
-
-## Graveyard Hashmap (GRHM)
-./bench/paper_final/churn_5_95.sh 3 1 GRHM
-
-# Unordered hash tables.
-
-# ABSL
-./bench/paper_final/churn_5_95.sh 3 1 ABSL
-
-# GZHM(V)
-./bench/paper_final/churn_5_95.sh 3 1 ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED
-
-# ICEBERG
-./bench/paper_final/churn_5_95.sh 3 1 ICEBERG_SINGLE_THREAD
-
-# CLHT
-./bench/paper_final/churn_5_95.sh 3 1 CLHT
-
-# LIBCUCKOO
-./bench/paper_final/churn_5_95.sh 3 1 CUCKOO
+exit 0

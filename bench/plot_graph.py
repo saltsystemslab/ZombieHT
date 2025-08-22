@@ -5,14 +5,26 @@ import numpy as np
 import os
 from matplotlib import pyplot as plt
 import json
-from scipy.stats import hmean
+
+method_mapping = {
+    'ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED': 'ZombieHT(V)',
+    'CUCKOO': 'Cuckoo',
+    'GRHM': 'GraveyardHT',
+    'GZHM_ADAPTIVE': 'ZombieHT(C)',
+    'RHM': 'RobinHoodHT',
+    'ICEBERG_SINGLE_THREAD': 'IcebergHT',
+    'TRHM': 'TombstoneHT'
+}
+ordered = ['ZombieHT(C)', 'GraveyardHT', 'TombstoneHT', 'RobinHoodHT']
 
 dir = "bench_run"
 if len(sys.argv) > 1:
     dir = sys.argv[1]
+    print(dir)
 variants = next(os.walk(dir))[1]
 
-csv_dir = os.path.join(sys.argv[2], 'csv', dir)
+csv_dir = os.path.join(sys.argv[2], 'csv')
+print(csv_dir)
 os.makedirs(csv_dir, exist_ok=True)
 
 f = open("%s/%s/test_params.txt" % (dir, variants[0]), "r")
@@ -52,7 +64,7 @@ def plot_tombstone():
     for d in variants:
         if not os.path.exists('./%s/%s/churn_metadata.txt'% (dir, d)):
             continue
-        df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), delim_whitespace=True)
+        df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), sep='\s+')
         plt.plot(df["churn_cycle"], df["tombstones"], label=d)
         plt.xlabel("churn cycle" )
         plt.ylabel("tombstone_count")
@@ -68,7 +80,7 @@ def plot_tombstone_ratio():
     for d in variants:
         if not os.path.exists('./%s/%s/churn_metadata.txt' % (dir, d)):
             continue
-        df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), delim_whitespace=True)
+        df = pd.read_csv('./%s/%s/churn_metadata.txt' % (dir, d), sep='\s+')
         plt.plot(df["churn_cycle"], df["tombstones"]/(df["tombstones"] + df["occupied"]), label=d)
         plt.xlabel("churn cycle" )
         plt.ylabel("tombstone_count")
@@ -84,7 +96,7 @@ def plot_churn_op_throuput_ts(name, ops):
     for d in variants:
         if not os.path.exists('./%s/%s/churn_thrput.txt'% (dir, d)):
             continue
-        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), sep='\s+')
         df = df.loc[ (df["op"].isin(ops)) ]
         if (len(df)==0):
             return
@@ -110,17 +122,14 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
     for d in variants:
         if not os.path.exists('./%s/%s/churn_thrput.txt'% (dir, d)):
             continue
-        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+        df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), sep='\s+')
         df = df.loc[ (df["op"].isin(ops)) ]
         if (len(df)==0):
             return
         thrput = (df["num_ops"].sum() / df["duration"].sum()) * 1000.0
-        overall_tput[d [d.rfind('_') + 1:] ] = thrput
-        grouped = df.groupby("churn_cycle").agg({"num_ops": sum, "duration": sum})
+        overall_tput[d] = thrput
+        grouped = df.groupby("churn_cycle").agg({"num_ops": "sum", "duration": "sum"})
         grouped["thrput"] = (grouped["num_ops"]/grouped["duration"]) * 1000.0
-        if stats:
-            thrput_table[d] = grouped['thrput'].describe()
-            covar[d] = thrput_table[d]['std']/thrput_table[d]['mean'] * 100.0
         l = d
         if d == 'ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED':
             l = 'GZHM(V)'
@@ -129,31 +138,22 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
 
         plt.plot(grouped.index, grouped["thrput"], label="%s: %.3f" % (l, thrput) )
         plt.xlabel("test progression (churn_cycle)" )
-        if csv:
-            grouped.to_csv(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"))
-            # Hack to show that TRHM dies. Adding 0 throughput if we didn't get that far.
-            NUM_CHURN_CYCLES=churn_cycles
-            if (len(grouped) < NUM_CHURN_CYCLES + 1):
-                with open(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"), "a") as csvfile:
-                    for i in range(len(grouped), NUM_CHURN_CYCLES):
-                        csvfile.write(f"{i},0,0,0\n")
 
+        grouped.to_csv(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"))
+            # Adding 0 throughput for TRHM to show that it didn't get that far.
+        NUM_CHURN_CYCLES=churn_cycles
+        if (len(grouped) < NUM_CHURN_CYCLES + 1):
+            with open(os.path.join(csv_dir, f"{d}_{name}_throughput.csv"), "a") as csvfile:
+                for i in range(len(grouped), NUM_CHURN_CYCLES):
+                    csvfile.write(f"{i},0,0,0\n")
         plt.ylabel("throughput (ops/usec)")
-    if stats:
-        #print(covar)
-        covar = pd.DataFrame(covar, index=['covariance'])
-        #print(covar)
-        thrput_table = pd.concat([thrput_table, covar])
-        #print(thrput_table.columns)
-        #print(thrput_table[["GZHM", "GZHM_ADAPTIVE", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_markdown())
-        #print(thrput_table[["GZHM", "GZHM_ADAPTIVE", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
-        #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
-        #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_markdown())
-        #print(thrput_table[["GZHM", "RHM", "TRHM", "GRHM", "ABSL", "CLHT", "ICEBERG"]].to_latex(float_format='%.2f'))
-    print(json.dumps(overall_tput, indent=4, sort_keys=True))
-    ot = (pd.DataFrame(overall_tput, index=["Tput"]).transpose().sort_index())
-    ot.index.names = ['C_B']
-    ot.to_csv(os.path.join(csv_dir, f"{name}_throughput.csv"))
+    ot = (pd.DataFrame(overall_tput, index=["Thput"]).transpose().sort_index())
+    ot.columns = ['MOps/sec']  # Rename the column
+    ot.index.name = 'Table'   # Name the index
+    ot = (ot.rename(index=method_mapping))
+
+    ot.loc[ordered].to_latex(os.path.join(csv_dir, 'ordered_throughput.tex'), float_format='%.2f')
+
     plt.legend()
     update_ratio = (2 * churn_ops) / (lookup_ops + 2 * churn_ops) * 100.0
     lookup_ratio = (lookup_ops) / (lookup_ops + 2 * churn_ops) * 100.0
@@ -163,24 +163,6 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
     plt.savefig(os.path.join(dir, "plot_churn_%s.png" % name))
     plt.close()
 
-def plot_memory_usage():
-    data = []
-    labels = []
-    for d in variants:
-        f_variant = open("%s/%s/test_params.txt" % (dir, d), "r")
-        lines = f_variant.readlines()
-        memory_usage = int(lines[0])
-        data.append(memory_usage)
-        labels.append(d)
-    plt.bar(labels, data)
-    plt.yscale('log')
-    plt.ylabel("Size (B)")
-    plt.title("Size usage (B)")
-    add_caption()
-    plt.title(f"Memory Usage")
-    plt.tight_layout()
-    plt.savefig(os.path.join(dir, "plot_memory_usage.png"))
-    plt.close()
 
 def plot_latency_boxplots(op):
     data = []
@@ -188,7 +170,7 @@ def plot_latency_boxplots(op):
     for d in variants:
         if not os.path.exists('./%s/%s/churn_latency.txt'% (dir, d)):
             continue
-        df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
+        df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), sep='\s+')
         df = df.loc[(df["op"]==op)]
         if (len(df)==0):
             return
@@ -210,7 +192,7 @@ def plot_latency_boxplots_group(ops):
         for d in variants:
             if not os.path.exists('./%s/%s/churn_latency.txt' % (dir, d) ):
                 continue
-            df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
+            df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), sep='\s+')
             df = df.loc[(df["op"]==op)]
             if (len(df)==0):
                 return
@@ -234,7 +216,7 @@ def plot_distribution(metric):
         metric_file = './%s/%s/%s.txt' % (dir, d, metric)
         if (not os.path.isfile(metric_file)):
             continue
-        df = pd.read_csv(metric_file, delim_whitespace=True)
+        df = pd.read_csv(metric_file, sep='\s+')
         columns = df.columns
         df=df.sort_values(columns[0])
         df.to_csv(os.path.join(csv_dir, f"{d}_{metric}.csv"))
@@ -246,22 +228,6 @@ def plot_distribution(metric):
     plt.savefig(os.path.join(dir, "plot_%s.png" % metric))
     plt.close()
 
-plt.figure(figsize=(20,6))
-for d in variants:
-    if not os.path.exists('./%s/%s/load.txt' % (dir, d)):
-        continue
-    df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
-    df["y_0"] = df["y_0"] * 1000.0 
-    df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
-    plt.plot(df["x_0"], df["y_0"], label=d +':' + str(df["y_0"].mean()), marker='.')
-    plt.xlabel("percent of keys inserted" )
-    plt.ylabel("throughput")
-plt.legend()
-plt.title("LOAD PHASE")
-add_caption()
-plt.tight_layout()
-plt.savefig(os.path.join(dir, "plot_insert.png"))
-plt.close()
 
 def humanize_nanoseconds(sec):
     time_str = ('%.2f') % (sec / 1000.0)
@@ -282,14 +248,12 @@ def latency_distribution(dir, ops):
         hsum = pd.DataFrame()
         for column in summaries.columns:
             hsum[column] = summaries[column].map(lambda x : humanize_nanoseconds(x))
-        print(op)
-        print(rel_var)
         hsum = pd.concat([hsum, pd.DataFrame(rel_var, index=['relVar'])])
-        print(hsum.columns)
-        print(hsum.to_markdown())
-        print(os.path.join(csv_dir, f"{op}.txt"))
+        print(os.path.join(csv_dir, f"{op}_latency.tex"))
         with open(os.path.join(csv_dir, f"{op}.tex"), "w") as table_file:
             table_file.write(hsum[["GZHM", "RHM", "TRHM", "GRHM", "GZHMV", "ABSL", "CLHT", "ICEBERG", "CUCKOO"]].to_latex(float_format='%.2f'))
+            #table_file.write(hsum[["ABSL"]].to_markdown())
+            #print(hsum[["ABSL"]])
 
 def humanize_bytes(bytes):
     bytes_str = ('%d B') % (bytes)
@@ -302,7 +266,7 @@ def humanize_bytes(bytes):
     return bytes_str
 
 def get_thrput(d):
-    df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), delim_whitespace=True)
+    df = pd.read_csv('./%s/%s/churn_thrput.txt' % (dir, d), sep='\s+')
     thrput = (df["num_ops"].sum() / df["duration"].sum()) * 1000.0
     return thrput
 
@@ -317,28 +281,24 @@ def memory_usage(dir):
         f_variant = open("%s/%s/test_params.txt" % (dir, d), "r")
         lines = f_variant.readlines()
         memory_usage = int(lines[0])
-        tput.append(get_thrput(d))
         data.append(memory_usage)
+        print(data)
         labels.append(d)
-        hm_type.append(d[0:d.find(':')]) # Hack, first three characters to identify hashmap type for space efficiency study.
+        hm_type.append(d) # Hack, first three characters to identify hashmap type for space efficiency study.
         lfs.append(load_factor(d))
     df['Hashmap'] = labels
     df['hm_type'] = hm_type
     df['USAGE'] = data
-    df['load_cycle'] = lfs
-    df['load_factor'] = df['load_cycle'] * 0.95
-    df['throughput'] = tput
     df['Size'] = df['USAGE'].map(lambda x: humanize_bytes(x))
-    #df['Space Efficiency'] = df['load_factor'] * ((2**quotient_bits) * 16) / df['USAGE']
-    df['Space Efficiency'] = (0.95 * 1694498816) / df['USAGE']
-    #df['Space Efficiency'] = df['USAGE'].map(lambda x: ((load_factor * (2**quotient_bits) * 16) / x))
+    df['Space Efficiency'] = (0.95 * 1694498816) / df['USAGE'] # Hardcoded for 2^27 bits and 0.95 load factor from universe of 2^64
+    df['Hashmap'] = df['Hashmap'].map(method_mapping) 
     with open(os.path.join(csv_dir, f"mem.tex"), "w") as table_file:
-            table_file.write(df[['Hashmap', "load_factor", "Size", "Space Efficiency"]].to_latex(float_format="%.2f"))
-    print(df[["hm_type", "load_factor", "USAGE", "Size", "Space Efficiency", "throughput"]].to_markdown())
-    #print(pd.pivot(df, index="Space Efficiency", columns="hm_type", values="throughput").to_markdown())
-    #print(pd.pivot(df, index="load_factor", columns="hm_type", values="throughput").to_markdown())
+            table_file.write(df[['Hashmap', "Size", "Space Efficiency"]].to_latex(float_format="%.4f"))
+
+
 
 def plot_load_phase():
+    overall = {}
     plt.figure(figsize=(20,6))
     for d in variants:
         if not os.path.exists('./%s/%s/load.txt' % (dir, d)):
@@ -346,16 +306,16 @@ def plot_load_phase():
         f_variant = open("%s/%s/test_params.txt" % (dir, d), "r")
         lines = f_variant.readlines()
         memory_usage = int(lines[0])
-        df = pd.read_csv('./%s/%s/load.txt' % (dir, d), delim_whitespace=True)
+        df = pd.read_csv('./%s/%s/load.txt' % (dir, d), sep='\s+')
         #df['se'] = (df['x_0'] * load_factor(d) / 100.0) * ((2**quotient_bits) * 16) / memory_usage
         df['se'] = (df['x_0'] * load_factor(d) / 100.0) * (0.95 * 1694498816) / memory_usage
         df['lf'] = df['x_0'] * 0.95 #(df['x_0'] * load_factor(d) / 100.0) * (0.95 * 1694498816) / memory_usage
         df["y_0"] = df["y_0"] * 1000.0 
-        print(d,"MEAN:", df["y_0"].mean(), "HMEAN: ", hmean(df["y_0"]))
         df.to_csv(os.path.join(csv_dir, f"{d}_load_phase.csv"))
         plt.plot(df["lf"], df["y_0"], label=d + ':' + str(df["y_0"].mean()), marker='.')
         plt.xlabel("load_factor" )
         plt.ylabel("throughput")
+        overall[d] = df["y_0"].mean()
     plt.legend()
     plt.title("LOAD PHASE")
     add_caption()
@@ -363,26 +323,15 @@ def plot_load_phase():
     plt.savefig(os.path.join(dir, "plot_insert.png"))
     plt.close()
 
+    ot = (pd.DataFrame(overall, index=["Thput"]).transpose().sort_index())
+    ot.columns = ['MOps/sec']  # Rename the column
+    ot.index.name = 'Table'   # Name the index
+    ot = (ot.rename(index=method_mapping))
+    ot.loc[ordered].to_latex(os.path.join(csv_dir, 'ordered_load_throughput.tex'), float_format='%.2f')
+
+
 memory_usage(dir)
 plot_load_phase()
-#latency_distribution(dir, ["DELETE", "INSERT", "LOOKUP"])
-plot_churn_op_throuput_churn("INSERT", ["INSERT"], csv=True, stats=True)
 plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True, stats=True)
-plot_churn_op_throuput_churn("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"], csv=True, stats=True)
-plot_churn_op_throuput_churn("LOOKUP", ["LOOKUP"], csv=True, stats=True)
-plot_churn_op_throuput_churn("DELETE", ["DELETE"], csv=True, stats=True)
-plot_churn_op_throuput_churn("INSERT", ["INSERT"], csv=True, stats=True)
-plot_churn_op_throuput_churn("INSERT", ["INSERT"], csv=True, stats=True)
-plot_churn_op_throuput_churn("LOOKUP", ["LOOKUP"], csv=True, stats=True)
-plot_churn_op_throuput_churn("OVERALL_NO_LOOKUP", ["INSERT", "DELETE"])
-#plot_churn_op_throuput_churn("MIXED", ["MIXED"], csv=True)
-plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True, stats=True)
-plot_latency_boxplots("DELETE")
-plot_latency_boxplots("INSERT")
-plot_latency_boxplots("LOOKUP")
-plot_latency_boxplots("MIXED")
-plot_latency_boxplots_group(["DELETE", "INSERT", "LOOKUP"])
-plot_distribution('cluster_len')
-plot_memory_usage()
 plot_distribution('home_slot_dist')
 plot_distribution('tombstone_dist')
