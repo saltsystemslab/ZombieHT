@@ -283,6 +283,30 @@
     \caption{Space Usage}
 \end{figure}
 
+\begin{figure}{}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    ymin = 0,
+    mark repeat=11,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    legend columns = -1,
+    legend style={at={(0.5, 1.1)}, anchor=south},
+    legend entries={ZombieHT, ZombieHT($C_B=3.0$), ZombieHT(Delete)},
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_ADAPTIVE_OVERALL_throughput.csv};
+    \addplot+[gzhmTheory] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_OVERALL_throughput.csv};
+    \addplot+[gzhmd] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_DELETE_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\caption{Zombie Internal Parameters (Figure 11)}
+\end{figure}
+
 \section{Unordered Hash Tables}
 
 
@@ -444,26 +468,28 @@
 
 \section{Latency}
 
-  \begin{table}
+  \begin{table}[H]
     \resizebox{\linewidth}{!}{
       \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_latency/result/csv/INSERT.tex}
     }
     \caption{Insert Latency (mircoseconds)}
   \end{table}
 
-  \begin{table}
+  \begin{table}[H]
     \resizebox{\linewidth}{!}{
       \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_latency/result/csv/DELETE.tex}
     }
     \caption{Delete Latency (microseconds)}
   \end{table}
 
-  \begin{table}
+  \begin{table}[H]
     \resizebox{\linewidth}{!}{
       \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_latency/result/csv/LOOKUP.tex}
     }
     \caption{Lookup Latency (microseconds)}
   \end{table}
+
+
 
 
 \end{document}
