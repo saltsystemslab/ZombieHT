@@ -6,3 +6,9 @@ done
 for dir in sponge_paper/*; do
     python3 ./bench/plot_graph.py $dir/gzhm_variants_latency/run $dir/gzhm_variants_latency/result
 done
+
+cd bench/report
+make brute
+make brute
+cp main.pdf ../../
+cd ../../

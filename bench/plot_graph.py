@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#True!/usr/bin/python3
 import sys
 import pandas as pd
 import numpy as np
@@ -8,14 +8,17 @@ import json
 
 method_mapping = {
     'ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED': 'ZombieHT(V)',
+    'ABSL': 'ABSL',
     'CUCKOO': 'Cuckoo',
     'GRHM': 'GraveyardHT',
     'GZHM_ADAPTIVE': 'ZombieHT(C)',
     'RHM': 'RobinHoodHT',
     'ICEBERG_SINGLE_THREAD': 'IcebergHT',
-    'TRHM': 'TombstoneHT'
+    'TRHM': 'TombstoneHT',
+    'CLHT': 'CLHT'
 }
 ordered = ['ZombieHT(C)', 'GraveyardHT', 'TombstoneHT', 'RobinHoodHT']
+unordered = ['ZombieHT(V)', 'ABSL', 'Cuckoo', 'IcebergHT', 'CLHT']
 
 dir = "bench_run"
 if len(sys.argv) > 1:
@@ -153,6 +156,7 @@ def plot_churn_op_throuput_churn(name, ops, csv=False, stats=False):
     ot = (ot.rename(index=method_mapping))
 
     ot.loc[ordered].to_latex(os.path.join(csv_dir, 'ordered_throughput.tex'), float_format='%.2f')
+    ot.loc[unordered].to_latex(os.path.join(csv_dir, 'unordered_throughput.tex'), float_format='%.2f')
 
     plt.legend()
     update_ratio = (2 * churn_ops) / (lookup_ops + 2 * churn_ops) * 100.0
@@ -239,7 +243,7 @@ def latency_distribution(dir, ops):
     for op in ops:
         rel_var = {}
         for d in variants:
-            df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), delim_whitespace=True)
+            df = pd.read_csv('./%s/%s/churn_latency.txt' % (dir, d), sep='\s+')
             df = df.loc[(df["op"]==op)]
             if (len(df)==0):
                 continue
@@ -250,10 +254,11 @@ def latency_distribution(dir, ops):
             hsum[column] = summaries[column].map(lambda x : humanize_nanoseconds(x))
         hsum = pd.concat([hsum, pd.DataFrame(rel_var, index=['relVar'])])
         print(os.path.join(csv_dir, f"{op}_latency.tex"))
+        hsum = (hsum.rename(columns=method_mapping))
+        hsum = hsum.rename(index={'50%': '50p', '90%': '90p', '99.99%': '99.99p'})
+        print(hsum.columns)
         with open(os.path.join(csv_dir, f"{op}.tex"), "w") as table_file:
-            table_file.write(hsum[["GZHM", "RHM", "TRHM", "GRHM", "GZHMV", "ABSL", "CLHT", "ICEBERG", "CUCKOO"]].to_latex(float_format='%.2f'))
-            #table_file.write(hsum[["ABSL"]].to_markdown())
-            #print(hsum[["ABSL"]])
+            table_file.write(hsum[ordered + unordered].to_latex(float_format='%.2f'))
 
 def humanize_bytes(bytes):
     bytes_str = ('%d B') % (bytes)
@@ -282,7 +287,6 @@ def memory_usage(dir):
         lines = f_variant.readlines()
         memory_usage = int(lines[0])
         data.append(memory_usage)
-        print(data)
         labels.append(d)
         hm_type.append(d) # Hack, first three characters to identify hashmap type for space efficiency study.
         lfs.append(load_factor(d))
@@ -335,3 +339,4 @@ plot_load_phase()
 plot_churn_op_throuput_churn("OVERALL", ["INSERT", "DELETE", "LOOKUP"], csv=True, stats=True)
 plot_distribution('home_slot_dist')
 plot_distribution('tombstone_dist')
+latency_distribution(dir, ["INSERT", "DELETE", "LOOKUP"])
