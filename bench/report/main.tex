@@ -1,0 +1,469 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{tikz}
+\usepackage{booktabs}  % This provides \toprule, \midrule, \bottomrule
+\usepackage{pgfplots}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage[
+    top=1in,
+    bottom=1in, 
+    left=0.75in,
+    right=0.75in,
+    columnsep=0.33in
+]{geometry}
+
+\title{\textbf{Reproducibility Report: \\[0.5em] \large [ZombieHT]}}
+
+\pgfplotsset{
+    every axis/.append style={
+            legend style={
+                     font=\small,
+            },
+        },
+    every x tick label/.append style={font=\scriptsize}, % won't work as it seems to be deleted/overwritten by .append style in the axis environment     
+    every y tick label/.append style={font=\scriptsize}, % will work, because there is no .append style command in the axis environment     
+    %every tick label/.append style={font=\scriptsize}, % works neither ...  
+    compat=1.5,
+    label style={font=\small},
+  OurStyle/.style     = {mark options={color=black}, color=black, mark = *},
+  gzhm/.style     = {mark options={color=color-gzhm, scale=1.2},  color=color-gzhm,     mark = triangle*},
+  gzhmv/.style     = {mark options={color=color-gzhm, scale=0.9},  color=color-gzhm,     mark = pentagon*, solid},
+  gzhmTheory/.style = {mark options={color = magenta, scale=0.9}, color = magenta,              mark = Mercedes star},
+  gzhm25/.style     = {mark options={color = violet, scale=0.9},color = violet, mark = triangle*},
+  gzhmd/.style     = {mark options={color = cyan, scale=0.9}, color = cyan,  mark = star},
+  rhm/.style     = {mark options={color = gray},   color = gray,   mark = pentagon*},
+  trhm/.style     = {mark options={color = cyan!50}, color=cyan!50, mark = *},
+  grhm/.style     = {mark options={color = violet!50},  color = violet!50,  mark = square*},
+  absl/.style     = {mark options={color = brown!50},   color = brown!50, mark = halfcircle*},
+  iceberg/.style     = {mark options={color = cyan!60}, color = cyan!60, mark = otimes},
+  clht/.style     = {mark options={color = violet!50}, color = violet!50, mark = oplus},
+  cuckoo/.style     = {mark options={color = magenta!50}, color = magenta!50, mark = halfsquare*, solid},
+  update/.style     = {mark options={color = red}, color = red, mark = halfcircle},
+  lookup/.style     = {mark options={color = blue, scale=0.9}, color = blue, mark = halfcircle*},
+}
+
+\begin{document}
+
+\definecolor{color-gzhm}{RGB}{255,0,0}
+\definecolor{color-rhm}{RGB}{106,61,154}
+\definecolor{color-trhm}{RGB}{178,223,138}
+\definecolor{color-absl}{RGB}{227,26,28}
+\definecolor{color-clht}{RGB}{178,223,138}
+\definecolor{color-cuckoo}{RGB}{255,127,0}
+\definecolor{color-iceberg}{RGB}{166,206,227}
+
+\newcommand{\ZM}{\textbf{ZombieHT}}
+\newcommand{\ZMV}{\textbf{ZombieHT(V)}}
+\newcommand{\ZMC}{\textbf{ZombieHT(C)}}
+\newcommand{\RHM}{\textbf{RobinHoodHT}}
+\newcommand{\GRHM}{\textbf{GraveyardHT}}
+\newcommand{\TM}{\textbf{TombstoneHT}}
+\newcommand{\ABSL}{\textbf{AbslHT}}
+\newcommand{\CLHT}{\textbf{CLHT}}
+\newcommand{\ICE}{\textbf{IcebergHT}}
+\newcommand{\CUCKOO}{\textbf{CuckooHT}}
+\newcommand{\PTS}{C_p}
+
+
+%\maketitle
+
+\section{Experimental Results}
+
+\subsection{Ordered Linear Probing Hash Tables}
+
+\begin{figure}[H]
+\begin{subfigure}{\linewidth}
+\centering
+    \ref{ordered}
+\end{subfigure}
+
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    mark repeat=11,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    legend columns = -1,
+    legend entries={GraveyardHT, RobinHoodHT, TombstoneHT, ZombieHT},
+    legend to name=ordered,
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[grhm] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/GRHM_OVERALL_throughput.csv}; 
+    \addplot+[rhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/RHM_OVERALL_throughput.csv};
+    \addplot+[trhm, mark repeat=7] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/TRHM_OVERALL_throughput.csv};
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_ADAPTIVE_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    mark repeat=9,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    axis x discontinuity=crunch,
+    restrict x to domain=1000:1800,
+    title=5\% updates 95\% lookup,
+]
+    \addplot+[grhm] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GRHM_OVERALL_throughput.csv}; 
+    \addplot+[rhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/RHM_OVERALL_throughput.csv};
+    \addplot+[trhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/TRHM_OVERALL_throughput.csv};
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_ADAPTIVE_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{95\% Load factor throughput (Corresponds to Figure 6 in paper.)}
+\end{figure}
+
+
+\begin{figure}[H]
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    mark repeat=11,
+    xlabel=churn cycle,
+    width=7cm,
+    height=4.2cm,
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[grhm] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/grhm_overall_throughput.csv}; 
+    \addplot+[rhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/rhm_overall_throughput.csv};
+    \addplot+[trhm, mark repeat=7] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/trhm_overall_throughput.csv};
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/gzhm_adaptive_overall_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={throughput (m ops/s)},
+    mark repeat=9,
+    xlabel=churn cycle,
+    width=7cm,
+    height=4.2cm,
+    title=5\% updates 85\% lookup,
+]
+    \addplot+[grhm] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/grhm_overall_throughput.csv}; 
+    \addplot+[rhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/rhm_overall_throughput.csv};
+    \addplot+[trhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/trhm_overall_throughput.csv};
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/gzhm_adaptive_overall_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{85\% load factor (corresponds to figure 7c, 7d in paper.)}
+\end{figure}
+
+\begin{figure}[H]
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    mark repeat=11,
+    xlabel=churn cycle,
+    width=7cm,
+    height=4.2cm,
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[grhm] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/grhm_overall_throughput.csv}; 
+    \addplot+[rhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/rhm_overall_throughput.csv};
+    \addplot+[trhm, mark repeat=7] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/trhm_overall_throughput.csv};
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/gzhm_adaptive_overall_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={throughput (m ops/s)},
+    mark repeat=9,
+    xlabel=churn cycle,
+    width=7cm,
+    height=4.2cm,
+    title=5\% updates 75\% lookup,
+]
+    \addplot+[grhm] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/grhm_overall_throughput.csv}; 
+    \addplot+[rhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/rhm_overall_throughput.csv};
+    \addplot+[trhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/trhm_overall_throughput.csv};
+    \addplot+[gzhm] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/gzhm_adaptive_overall_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{75\% load factor throughput (corresponds to figure 7a, 7b in paper.)}
+\end{figure}
+
+
+\begin{figure}[H]
+    \begin{subfigure}{0.3\linewidth}
+        \centering
+        \input{sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ordered_load_throughput.tex}
+        \caption{Load Factor}
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \centering
+        \input{sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ordered_throughput.tex}
+        \caption{5\% updates}
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \centering
+        \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ordered_throughput.tex}
+        \caption{50\% updates}
+    \end{subfigure}
+    \caption{95\% load factor}
+\end{figure}
+
+\begin{figure}[H]
+\begin{subfigure}{\linewidth}
+\centering
+    \ref{ordered}
+\end{subfigure}
+
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Tombstone Distance},
+    mark repeat=500,
+    xlabel=Count,
+    width=7cm,
+    height=4.2cm,
+    title=Count,
+    ymode=log,
+]
+    \addplot+[grhm] table [x=TombstoneDistance, y=Count, col sep=comma]{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/GRHM_tombstone_dist.csv}; 
+    \addplot+[rhm] table [x=TombstoneDistance, y=Count, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/RHM_tombstone_dist.csv};
+    \addplot+[trhm] table [x=TombstoneDistance, y=Count, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/TRHM_tombstone_dist.csv};
+    \addplot+[gzhm] table [x=TombstoneDistance, y=Count, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_ADAPTIVE_tombstone_dist.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ymode=log,
+    ylabel={Count},
+    mark repeat=9,
+    xlabel=Home Slot Distance,
+    width=7cm,
+    height=4.2cm,
+    title=Count,
+]
+    \addplot+[grhm] table [x=HomeSlotDistance, y=Count, col sep=comma]{sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GRHM_home_slot_dist.csv}; 
+    \addplot+[rhm] table [x=HomeSlotDistance, y=Count, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/RHM_home_slot_dist.csv};
+    \addplot+[trhm] table [x=HomeSlotDistance, y=Count, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/TRHM_home_slot_dist.csv};
+    \addplot+[gzhm] table [x=HomeSlotDistance, y=Count, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/GZHM_ADAPTIVE_home_slot_dist.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{Microbenchmarks (Corresponds to Figure 10 in paper.)}
+\end{figure}
+
+\begin{figure}[H]
+    \begin{subfigure}{\linewidth}
+        \centering
+        \input{sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/mem.tex}
+        \caption{Load Factor}
+    \end{subfigure}
+    \caption{Space Usage}
+\end{figure}
+
+\section{Unordered Hash Tables}
+
+
+\begin{figure}[H]
+\begin{subfigure}{\linewidth}
+\centering
+    \ref{unordered}
+\end{subfigure}
+
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    mark repeat=11,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    legend columns = -1,
+    legend entries={ZombieHT(V), ABSL, Iceberg, CLHT, Cuckoo},
+    legend to name=unordered,
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[gzhmv] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED_OVERALL_throughput.csv}; 
+    \addplot+[absl] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_OVERALL_throughput.csv};
+    \addplot+[iceberg] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ICEBERG_SINGLE_THREAD_OVERALL_throughput.csv};
+    \addplot+[clht] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/CLHT_OVERALL_throughput.csv};
+    \addplot+[cuckoo] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/CUCKOO_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    mark repeat=9,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    restrict x to domain=0:300, 
+    title=5\% updates 95\% lookup,
+]
+    \addplot+[gzhmv] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED_OVERALL_throughput.csv}; 
+    \addplot+[absl] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_OVERALL_throughput.csv};
+    \addplot+[iceberg] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ICEBERG_SINGLE_THREAD_OVERALL_throughput.csv};
+    \addplot+[clht] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/CLHT_OVERALL_throughput.csv};
+    \addplot+[cuckoo] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-95_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/CUCKOO_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{95\% Load factor throughput (Corresponds to Figure 8 in paper.)}
+\end{figure}
+
+\begin{figure}[H]
+\begin{subfigure}{\linewidth}
+\centering
+    \ref{unordered}
+\end{subfigure}
+
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    mark repeat=11,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    legend columns = -1,
+    legend entries={ZombieHT(V), ABSL, Iceberg, CLHT, Cuckoo},
+    legend to name=unordered,
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[gzhmv] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED_OVERALL_throughput.csv}; 
+    \addplot+[absl] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_OVERALL_throughput.csv};
+    \addplot+[iceberg] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ICEBERG_SINGLE_THREAD_OVERALL_throughput.csv};
+    \addplot+[clht] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/CLHT_OVERALL_throughput.csv};
+    \addplot+[cuckoo] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/CUCKOO_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    mark repeat=9,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    restrict x to domain=0:300, 
+    title=5\% updates 85\% lookup,
+]
+    \addplot+[gzhmv] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED_OVERALL_throughput.csv}; 
+    \addplot+[absl] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_OVERALL_throughput.csv};
+    \addplot+[iceberg] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ICEBERG_SINGLE_THREAD_OVERALL_throughput.csv};
+    \addplot+[clht] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/CLHT_OVERALL_throughput.csv};
+    \addplot+[cuckoo] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-85_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/CUCKOO_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{85\% Load factor throughput (Corresponds to Figure 9a, 9b in paper.)}
+\end{figure}
+
+\begin{figure}[H]
+\begin{subfigure}{\linewidth}
+\centering
+    \ref{unordered}
+\end{subfigure}
+
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    restrict x to domain=0:300, 
+    mark repeat=11,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    legend columns = -1,
+    legend entries={ZombieHT(V), ABSL, Iceberg, CLHT, Cuckoo},
+    legend to name=unordered,
+    title=50\% updates 50\% lookups,
+]
+    \addplot+[gzhmv] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED_OVERALL_throughput.csv}; 
+    \addplot+[absl] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_OVERALL_throughput.csv};
+    \addplot+[iceberg] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/ICEBERG_SINGLE_THREAD_OVERALL_throughput.csv};
+    \addplot+[clht] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/CLHT_OVERALL_throughput.csv};
+    \addplot+[cuckoo] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-50_thput-freq_1/gzhm_variants_thput/result/csv/CUCKOO_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\begin{subfigure}{0.48\linewidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ylabel={Throughput (M Ops/s)},
+    mark repeat=9,
+    xlabel=Churn Cycle,
+    width=7cm,
+    height=4.2cm,
+    restrict x to domain=0:300, 
+    title=5\% updates 75\% lookup,
+]
+    \addplot+[gzhmv] table [x=churn_cycle, y=thrput, col sep=comma]{sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_LINEAR_REHASH_CLUSTER_DEAMORTIZED_OVERALL_throughput.csv}; 
+    \addplot+[absl] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ABSL_OVERALL_throughput.csv};
+    \addplot+[iceberg] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/ICEBERG_SINGLE_THREAD_OVERALL_throughput.csv};
+    \addplot+[clht] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/CLHT_OVERALL_throughput.csv};
+    \addplot+[cuckoo] table [x=churn_cycle, y=thrput, col sep=comma] {sponge_paper/large-test_init-lf-75_update-pct-5_thput-freq_1/gzhm_variants_thput/result/csv/CUCKOO_OVERALL_throughput.csv};
+\end{axis}
+\end{tikzpicture}
+\end{subfigure}
+\caption{75\% Load factor throughput (Corresponds to Figure 9c, 9d in paper.)}
+\end{figure}
+
+\section{Latency}
+
+  \begin{table}
+    \resizebox{\linewidth}{!}{
+      \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_latency/result/csv/INSERT.tex}
+    }
+    \caption{Insert Latency (mircoseconds)}
+  \end{table}
+
+  \begin{table}
+    \resizebox{\linewidth}{!}{
+      \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_latency/result/csv/DELETE.tex}
+    }
+    \caption{Delete Latency (microseconds)}
+  \end{table}
+
+  \begin{table}
+    \resizebox{\linewidth}{!}{
+      \input{sponge_paper/large-test_init-lf-95_update-pct-50_thput-freq_1/gzhm_variants_latency/result/csv/LOOKUP.tex}
+    }
+    \caption{Lookup Latency (microseconds)}
+  \end{table}
+
+
+\end{document}
