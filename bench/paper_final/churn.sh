@@ -29,10 +29,10 @@ case $UPDATE_PCT in
 esac
 
 if [ $MIXED_WORKLOAD == "thput" ]; then
-  churn_args="-c ${CYCLES} -m 0"
+  churn_args="-c ${CYCLES} -m 0 -g 0"
   latency=""
 elif [ $MIXED_WORKLOAD == "latency" ]; then
-  churn_args="-c ${CYCLES} -z 50"
+  churn_args="-c ${CYCLES} -z 50 -g 50"
   latency="latency"
 else 
   echo "-m Specify measurement 'thput' or 'latency'"
@@ -40,7 +40,7 @@ else
 fi
 
 mkdir -p $DIR
-run_args="${QF_ARGS} -w ${UPDATES} -l ${LOOKUPS} -i ${INIT_LF} -s 0 -t 1 -g 50 ${churn_args}"
+run_args="${QF_ARGS} -w ${UPDATES} -l ${LOOKUPS} -i ${INIT_LF} -s 0 -t 1 ${churn_args}"
 echo $run_args
 
 
