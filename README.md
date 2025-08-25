@@ -11,19 +11,39 @@ More details about the implementation and theoretical guarantees are in the pape
 ```bash
 git clone git@github.com:saltsystemslab/grht
 cd grht
-git submodule update --init --recursive
-cd external/abseil-cpp
-git checkout linear-probe
-cd ../../
-cd external/libcuckoo
-git checkout get_size
-cd ../../
-cd external/clht
-make dependencies clht_lb
-cd ../../
+
+./setup.sh
+
 ./run_throughput.sh # Runs all churn benchmark tests to measure throughput.
 ./run_latency.sh # Runs all churn benchmark tests to measure latency.
+
+./plot_data.sh # Generates a report (./bench/report/main.pdf)
 ```
+
+## Churn Experiments
+
+The scripts `./run_throughput.sh` and `./run_latency.sh` will run all the experiments reported in the paper.
+
+The experiments measure the throughput and latency on ‘churn-cycle’ experiments on the hash tables. 
+
+In the setup phase of the experiment, the hash tables are filled to a chosen load factor. 
+
+We then run multiple churn cycles on the hash table. Each churn cycle first deletes 5% of the keys randomly in the hash table. It then performs the same amount of insertions (again using random keys) in the hash table. The test then performs lookup operations on the hash table.
+
+We run the experiments with the following configurations
+95% load factor, 50-50 split between updates and lookups, 320 churn cycles
+95% load factor, 5-95 split between updates and lookups
+Ordered tables: 2000 churn cycles
+Unordered tables: 320 cycles
+85% load factor, 50-50 split between updates and lookups, 320 churn cycles 
+85% load factor, 5-95 split between updates and lookups, 320 churn cycles
+75% load factor, 50-50 split between updates and lookups, 320 churn cycles
+75% load factor, 5-95 split between updates and lookups, 320 churn cycles
+
+Throughput is calculated by measuring the time to complete a single churn cycle.
+
+Each experiment for a hash table is run in its own process. Each experiment outputs a csv file capturing the throughput (or latency) metrics per churn cycle. We use python scripts to parse the data from each experiment and plot the graphs in Latex. For details on how to run these experiments, please refer to the README and the Reproducibility section below.
+
 
 ## Churn Benchmark Details
 
@@ -37,24 +57,12 @@ The [ChurnBenchmark](bench/hm_churn.cc) will
 
 ## Running a churn test
 
-Using the below script is the to run the churn test. `bench/paper_final/churn.sh` contains a workload with a churn cycle containing 5% inserts, 5% deletes and 20% lookups. Other scripts in `bench/paper_final` contain varying read/write ratio churn cycle benchmarks.
+Use `./bench/paper_final/churn.sh` to run a single churn test. The ./run_throughput.sh and ./run_latency.sh scripts invoke this script for each experiment.
 
 ```bash
-$ ./bench/paper_final/churn.sh <TEST_CASE> <MEASURE_LATENCY> <HM_VARIANT>
+$ ./bench/paper_final/churn.sh thput ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}
+$ ./bench/paper_final/churn.sh latency ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} ${THROUGHPUT_FREQ}
 ```
-
-TEST_CASE should be one of (1,2,3)
-- 1 : key size 38 bits, quotient 22 bits
-- 2 : key size 59 bits, quotient 27 bits
-- 3: key size 64 bits, quotient 27 bits
-
-Quotient only matters for quotient filter variants.
-
-MEASURE_LATENCY should be one of (0, 1)
-* 0: Don't measure latency, only throughput
-* 1: Sample latency
-
-VARIANTS: Refer to CMakeLists.txt for list of hashmap variants
 
 ### Hashmap Variants
 
@@ -67,25 +75,6 @@ VARIANTS: Refer to CMakeLists.txt for list of hashmap variants
 7. ICEBERG: [Iceberg HashTable](https://github.com/splatlab/iceberghashtable)
 8. CLHT: CLHT HashTable.
 
-
-### Example commands
-
-```bash
-# Example commands
-$ ./bench/paper_final/churn.sh 3 0 GZHM
-$ ./bench/paper_final/churn.sh 3 0 ABSL
-$  python3 ./bench/plot_graph.py sponge/gzhm_variants_3/run sponge/gzhm_variants_1/result
-```
-
-The above script will
-* Create a directory `sponge/gzhm_variants_3`
-	* Here `3` refers to the test case.
-* For each variant a build will be generated in `./sponge/gzhm_variants_3/build/<VARIANT>`
-	* The churn test binary is named `hm_churn`
-* Will run a churn test for 220 cycles.
-	* Refer to `src/hm_churn.cc` for the flags set in `./bench/paper_final/churn.sh`
-* Generates test results for each variant to `./sponge/gzhm_variants_3/run/<VARIANT>`
-* Finally `./bench/plot_graph.py` will generate graphs for all variants in `./bench/gzhm_variants_3/run/`
 
 ### Using PERF
 
