@@ -8,6 +8,7 @@ for dir in sponge_paper/*; do
 done
 
 cd bench/report
+ln -sf ../../sponge_paper .
 make brute
 make brute
 cp main.pdf ../../
