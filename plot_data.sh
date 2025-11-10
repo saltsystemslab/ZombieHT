@@ -9,7 +9,7 @@ done
 
 cd bench/report
 ln -sf ../../sponge_paper .
-make brute
-make brute
+make brute-nonstop
+make brute-nonstop
 cp main.pdf ../../
 cd ../../
