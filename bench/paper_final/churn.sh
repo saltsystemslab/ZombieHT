@@ -62,7 +62,7 @@ rm -rf ${run_dir}/$VARIANT
 rm -rf ${result_dir}/$VARIANT
 mkdir -p ${run_dir}/$VARIANT
 echo ./${build_dir}/$VARIANT/hm_churn ${run_args} ${churn_args} -d ${run_dir}/$VARIANT/
-numactl -N 0 -m 0 ./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
+./${build_dir}/$VARIANT/hm_churn $run_args $churn_args -d ${run_dir}/$VARIANT/
 
 #echo python3 ./bench/plot_graph.py ${run_dir} ${result_dir}
 #python3 ./bench/plot_graph.py ${run_dir} ${result_dir}
