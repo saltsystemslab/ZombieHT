@@ -56,7 +56,7 @@ mkdir -p ${result_dir}
 
 mkdir -p ${build_dir}/$VARIANT
 cmake . -B${build_dir}/$VARIANT -DCMAKE_BUILD_TYPE=Release -DVARIANT=$VARIANT
-cmake --build ${build_dir}/$VARIANT -j8
+cmake --build ${build_dir}/$VARIANT -j8 --target hm_churn
 
 rm -rf ${run_dir}/$VARIANT
 rm -rf ${result_dir}/$VARIANT

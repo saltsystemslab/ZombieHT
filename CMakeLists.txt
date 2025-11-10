@@ -161,5 +161,5 @@ else()
   target_link_libraries(hm_churn ssl crypto hm pc gqf hashutil pthread)
 endif()
 
-add_executable(join_test bench/join_bench.cc)
-target_link_libraries(join_test ssl crypto hm pc gqf hashutil iceberg)
+#add_executable(join_test bench/join_bench.cc)
+#target_link_libraries(join_test ssl crypto hm pc gqf hashutil iceberg)
