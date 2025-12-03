@@ -76,9 +76,14 @@ $ ./bench/paper_final/churn.sh latency ${VARIANT} ${LOAD_FACTOR} ${UPDATE_PCT} $
 8. CLHT: CLHT HashTable.
 
 
-### Using PERF
+### System Requirements
 
-To use perf, make sure to use .`/bench/paper_final/churn_perf.sh` instead of the above script. It uses `-DCMAKE_BUILD_TYPE=RelWithDebInfo` and runs the 
-
-This will create `perf.data` Will only store perf report of last run variant.
+Environment: A Linux machine with 16GB of RAM is recommended. Ubuntu 20.04 or later is
+preferred. The following dependencies are required:
+* gcc 11.4 or later
+* CMake 3.2.6 or later
+* python3
+* libssl-dev (openssl headers for generating random bytes for test)
+* LaTeX distribution with Tikz and standard plotting packages
+* The ICEBERG baseline requires AVX512BW instruction set. (The tests will skip this baseline if the hardware does not support it)
 
